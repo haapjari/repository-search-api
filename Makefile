@@ -33,3 +33,12 @@ database-stop:
 
 database-exec:
 	sudo -u postgres psql
+
+add:
+	git add .
+
+commit:
+	git commit -m $(msg)
+	git tag ${REPOSITORY_TAG}
+	git push
+	git push --tags

@@ -4,9 +4,13 @@ This is Glass, a REST API written in Go, which offers functionality to research 
 
 ---
 
-## How-To Run
+## How-To: Run
 
 - TBD
+
+---
+
+## How-To: Contribute
 
 ---
 
