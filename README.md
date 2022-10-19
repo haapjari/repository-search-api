@@ -13,7 +13,9 @@ This is Glass, a REST API written in Go, which offers functionality to research 
 ## TODO
 
 - Refactor the code to be more modular, and generic.
+- Refactor the Controller Methods "Enrich" to be a pluggable Parsers.
 - README.md -file.
+- GitHub Actions Pipeline
 - Unit Tests.
 - Include gocloc -package in the code as a library.
 - Create a Dockerfile.
@@ -22,5 +24,6 @@ This is Glass, a REST API written in Go, which offers functionality to research 
 - Deploy to Cloud.
 - Create a Release.
 - API Documentation.
+- Logger
 
 ---

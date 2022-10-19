@@ -34,15 +34,25 @@ type DataController struct {
 }
 
 func NewDataController() *DataController {
-	d := new(DataController)
-
-	return d
+	return new(DataController)
 }
 
 // GET /api/glass/data
 func GetEntities(c *gin.Context) {
-	h := NewHandler(c)
-	e := h.HandleGetEntities()
+	var (
+		h = NewHandler(c)
+		e = h.HandleGetEntities()
+	)
+
+	c.JSON(http.StatusOK, gin.H{"data": e})
+}
+
+// GET /api/glass/data/:id
+func GetEntityById(c *gin.Context) {
+	var (
+		h = NewHandler(c)
+		e = h.HandleGetEntityById()
+	)
 
 	c.JSON(http.StatusOK, gin.H{"data": e})
 }
@@ -61,20 +71,6 @@ func CreateEntity(c *gin.Context) {
 	// Create Model
 	dataEntity := models.Entity{Name: input.Name, Uri: input.Uri, Lin: input.Lin, Liblin: input.Liblin, Issct: input.Issct}
 	db.Create(&dataEntity)
-	c.JSON(http.StatusOK, gin.H{"data": dataEntity})
-}
-
-// GET /api/glass/data/:id
-func GetEntityById(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-
-	// Attempt to Fetch Models
-	var dataEntity models.Entity
-	if err := db.Where("id = ?", c.Param("id")).First(&dataEntity).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{"data": dataEntity})
 }
 

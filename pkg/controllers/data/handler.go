@@ -1,6 +1,8 @@
 package data
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/haapjari/glass/pkg/models"
 	"gorm.io/gorm"
@@ -25,6 +27,18 @@ func NewHandler(c *gin.Context) *Handler {
 func (h *Handler) HandleGetEntities() []models.Entity {
 	var e []models.Entity
 	h.DatabaseConnection.Find(&e)
+
+	return e
+}
+
+func (h *Handler) HandleGetEntityById() models.Entity {
+	var e models.Entity
+
+	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&e).Error; err != nil {
+		h.Context.JSON(http.StatusBadRequest, gin.H{"error": "entity not found!"})
+
+		return e
+	}
 
 	return e
 }
