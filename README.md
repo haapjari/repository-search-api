@@ -1,6 +1,6 @@
 # Glass
 
-This is Glass, a REST API written in Go, which offers functionality to research npm -ecosystem GitHub -repositories.
+This is Glass, a REST API written in Go, which offers functionality to research npm -ecosystem GitHub -repositories. This is ultimately a research tool, which is part of my Master's Thesis.
 
 ---
 
