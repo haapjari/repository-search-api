@@ -1,64 +1,34 @@
 package models
 
 type Repository struct {
-	Id   int    `json: "id" gorm: "primary_key"`
-	Name string `json: "name"`
-	Uri  string `json: "uri"`
+	Id               int    `json: "id" gorm: "primary_key"`
+	Name             string `json: "name"`
+	Uri              string `json: "uri"`
+	CodeLines        int    `json: "code_lines"`
+	IssueCount       int    `json: "issue_count"`
+	LibraryCodeLines int    `json: "library_code_lines"`
+	RepositoryType   string `json: "repository_type"`
 }
 
 type CreateRepositoryInput struct {
-	Name string `json: "name" binding:"required"`
-	Uri  string `json: "uri" binding:"required"`
+	Name             string `json: "name"`
+	Uri              string `json: "uri"`
+	CodeLines        int    `json: "code_lines"`
+	IssueCount       int    `json: "issue_count"`
+	LibraryCodeLines int    `json: "library_code_lines"`
+	RepositoryType   string `json: "repository_type"`
 }
 
 type UpdateRepositoryInput struct {
-	Name string `json: "name" binding:"required"`
-	Uri  string `json: "uri" binding:"required"`
+	Name             string `json: "name"`
+	Uri              string `json: "uri"`
+	CodeLines        int    `json: "code_lines"`
+	IssueCount       int    `json: "issue_count"`
+	LibraryCodeLines int    `json: "library_code_lines"`
+	RepositoryType   string `json: "repository_type"`
 }
 
-type Library struct {
-	Id     int    `json: "id" gorm: "primary_key"`
-	Name   string `json: "name"`
-	Uri    string `json: "uri"`
-	Liblin int    `json: "liblin"`
-}
-
-type CreateLibraryInput struct {
-	Name   string `json: "name" binding:"required"`
-	Uri    string `json: "uri" binding:"required"`
-	Liblin int    `json: "liblin"`
-}
-
-type UpdateLibraryInput struct {
-	Name   string `json: "name" binding:"required"`
-	Uri    string `json: "uri" binding:"required"`
-	Liblin int    `json: "liblin"`
-}
-
-type Entity struct {
-	Id     int    `json: "id" gorm: "primary_key"`
-	Name   string `json: "name"`
-	Uri    string `json: "uri"`
-	Lin    int    `json: "lin"`
-	Issct  int    `json: "issct"`
-	Liblin int    `json: "liblin"`
-}
-
-type CreateEntityInput struct {
-	Name   string `json: "name"`
-	Uri    string `json: "uri"`
-	Lin    int    `json: "lin"`
-	Issct  int    `json: "issct"`
-	Liblin int    `json: "liblin"`
-}
-
-type UpdateEntityInput struct {
-	Name   string `json: "name"`
-	Uri    string `json: "uri"`
-	Lin    int    `json: "lin"`
-	Issct  int    `json: "issct"`
-	Liblin int    `json: "liblin"`
-}
+// GitHub REST API
 
 type Owner struct {
 	Login             string `json:"login"`
