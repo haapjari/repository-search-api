@@ -1,31 +1,34 @@
 package models
 
 type Repository struct {
-	Id               int    `json: "id" gorm: "primary_key"`
-	Name             string `json: "name"`
-	Uri              string `json: "uri"`
-	CodeLines        int    `json: "code_lines"`
-	IssueCount       int    `json: "issue_count"`
-	LibraryCodeLines int    `json: "library_code_lines"`
-	RepositoryType   string `json: "repository_type"`
+	Id               int    `json:"id" gorm:"primary_key"`
+	Name             string `json:"name"`
+	Uri              string `json:"uri"`
+	CodeLines        int    `json:"code_lines"`
+	IssueCount       int    `json:"issue_count"`
+	LibraryCodeLines int    `json:"library_code_lines"`
+	RepositoryType   string `json:"repository_type"`
+	ProjectType      string `json:"project_type"`
 }
 
 type CreateRepositoryInput struct {
-	Name             string `json: "name"`
-	Uri              string `json: "uri"`
-	CodeLines        int    `json: "code_lines"`
-	IssueCount       int    `json: "issue_count"`
-	LibraryCodeLines int    `json: "library_code_lines"`
-	RepositoryType   string `json: "repository_type"`
+	Name             string `json:"name"`
+	Uri              string `json:"uri"`
+	CodeLines        int    `json:"code_lines"`
+	IssueCount       int    `json:"issue_count"`
+	LibraryCodeLines int    `json:"library_code_lines"`
+	RepositoryType   string `json:"repository_type"`
+	ProjectType      string `json:"project_type"`
 }
 
 type UpdateRepositoryInput struct {
-	Name             string `json: "name"`
-	Uri              string `json: "uri"`
-	CodeLines        int    `json: "code_lines"`
-	IssueCount       int    `json: "issue_count"`
-	LibraryCodeLines int    `json: "library_code_lines"`
-	RepositoryType   string `json: "repository_type"`
+	Name             string `json:"name"`
+	Uri              string `json:"uri"`
+	CodeLines        int    `json:"code_lines"`
+	IssueCount       int    `json:"issue_count"`
+	LibraryCodeLines int    `json:"library_code_lines"`
+	RepositoryType   string `json:"repository_type"`
+	ProjectType      string `json:"project_type"`
 }
 
 // GitHub REST API

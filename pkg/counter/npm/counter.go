@@ -11,29 +11,18 @@ var (
 	GITHUB_USERNAME  string = fmt.Sprintf("%v", utils.GetGithubUsername())
 )
 
-type NpmParser struct {
+type NpmCounter struct {
 	GitHubApiToken string
 	GitHubUsername string
 }
 
-func NewNpmParser() *NpmParser {
-	return new(NpmParser)
+func NewNpmCounter() *NpmCounter {
+	return new(NpmCounter)
 }
 
-// // Fetches product of rounds and batchSize amount of top starred GoLang repositories
-// // from GitHub and writes it to repositories table in connected PostgreSQL
-// // database. GitHub API accepts batches of 100 elements to be requested in
-// // single request, thats why the amount of requests are split into batches.
-// func fetchMetadata(rounds int, batchSize int, c *gin.Context) *gin.Context {
-// 	db := c.MustGet("db").(*gorm.DB)
-
-// 	keyword := utils.GetKeyword()
-// 	primaryLanguage := utils.GetPrimaryLanguage()
-
-// 	for i := 1; i <= rounds; i++ {
-
-// 		var baseString string = utils.GetBaseUrl()
-// 		var queryString string = "?q=" + keyword + "+stars:>0+language:" + primaryLanguage + "&sort=stars&order=desc&per_page=" + strconv.Itoa(batchSize) + "&page=" + strconv.Itoa(i)
+func (n *NpmCounter) CalculateCodeLines() {
+	fmt.Println("TODO")
+}
 
 // 		// Construct a Request Object
 // 		req, err := http.NewRequest("GET", baseString+queryString, nil)

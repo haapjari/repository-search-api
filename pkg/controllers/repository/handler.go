@@ -1,8 +1,9 @@
-// Handler handle's the communication between application and database.
 package repository
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/haapjari/glass/pkg/models"
@@ -51,7 +52,7 @@ func (h *Handler) HandleCreateRepository() bool {
 		return false
 	}
 
-	e := models.Repository{Name: i.Name, Uri: i.Uri, CodeLines: i.CodeLines, IssueCount: i.IssueCount, LibraryCodeLines: i.LibraryCodeLines, RepositoryType: i.RepositoryType}
+	e := models.Repository{Name: i.Name, Uri: i.Uri, CodeLines: i.CodeLines, IssueCount: i.IssueCount, LibraryCodeLines: i.LibraryCodeLines, RepositoryType: i.RepositoryType, ProjectType: i.ProjectType}
 
 	h.DatabaseConnection.Create(&e)
 
@@ -80,7 +81,6 @@ func (h *Handler) HandleUpdateRepositoryById() models.Repository {
 		return dataEntity
 	}
 
-	// Validate Input
 	var input models.Repository
 	if err := h.Context.ShouldBindJSON(&input); err != nil {
 		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -90,4 +90,31 @@ func (h *Handler) HandleUpdateRepositoryById() models.Repository {
 	h.DatabaseConnection.Model(&dataEntity).Updates(input)
 
 	return dataEntity
+}
+
+// TODO
+func (h *Handler) HandleFetchRepositories() bool {
+	count, _ := strconv.Atoi(h.Context.Query("amount"))
+	lang := h.Context.Query("lang")
+
+	// Query SourceGraph GraphQL API -> Fetch Metadata of the Repositories -> Save this to Database.
+	// Filter out the Repositories, that are not GitHub -projects.
+	// Encrich the data with GitHub GraphQL API.
+	// Export the data as a .CSV
+
+	// graphQlQueryStr := `query {
+	// 	search(query: "(lang:javascript OR lang:typescript) AND select:repo AND repohasfile:package.json AND count:1000", version: V2) {
+	// 	  results {
+	// 		  repositories {
+	// 			  name
+	// 			  stars
+	// 		  }
+	// 	  }
+	// 	}
+	//   }`
+
+	fmt.Println("")
+	fmt.Println(count, lang)
+
+	return true
 }
