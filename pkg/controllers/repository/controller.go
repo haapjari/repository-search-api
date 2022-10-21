@@ -23,7 +23,7 @@ func GetRepositories(c *gin.Context) {
 
 func GetRepositoryById(c *gin.Context) {
 	h := NewHandler(c)
-	e := h.HandleGetRepositories()
+	e := h.HandleDeleteRepositoryById()
 
 	c.JSON(http.StatusOK, gin.H{"data": e})
 }

@@ -34,6 +34,19 @@ This is Glass, a REST API written in Go, which aims to offers functionality to r
 - Implement Grafana and Prometheus to collect stats on the research run.
 - Makefile -> Tasks (?)
 - Create a release, when the first iteration is complete.
+- Test the endpoints.
+    - Repository
+        - GET / - works
+        - POST / - works
+        - GET /:id - not working
+        - PATCH /:id - not tested
+        - DELETE /:id - not tested
+    - Commit
+        - GET / - not tested
+        - POST / - not tested
+        - GET /:id - not tested
+        - PATCH /:id - not tested
+        - DELETE /:id - not tested
 
 ---
 
