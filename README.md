@@ -6,31 +6,66 @@ This is Glass, a REST API written in Go, which offers functionality to research 
 
 ## How-To: Run
 
-- TBD
+- See `Makefile`
+- Requires: `go`, `postgresql`
 
 ---
 
 ## How-To: Contribute
 
+- TBD
+
 ---
 
 ## TODO
 
-- Refactor the code to be more modular, and generic.
-- Refactor multiple tables to be one database, but will be filled.
-- Refactor the Controller Methods "Enrich" to be a pluggable Parsers.
+- Design the Database Tables.
+- PostgreSQL -> Redis, with Snapshots
 - README.md -file.
-- GitHub Actions Pipeline
+- GitHub Actions Pipeline.
 - Unit Tests.
-- Include gocloc -package in the code as a library.
 - Create a Dockerfile.
 - Secure the API.
 - Optimize the API.
 - Deploy to Cloud.
-- Create a Release.
 - API Documentation.
 - Logger
 - Grafana
 - Prometheus (?)
+- Makefile -> Tasks (?)
+- Create a Release.
+
+---
+
+# Data Collection
+
+## GraphQL
+
+- SourceGraph API, Query: `lang:go select:repo repohasfile:go.mod count:100000`
+- GitHub API
+
+---
+
+## Quality Measure
+
+- Quality Measure:
+    - Repository Activity
+        - Amount of commits, with dates. (TODO, How-To Query with GraphQL)
+    - Maintenance
+        - Amount of collabolators (TODO, How-To Query with GraphQL)
+    - Code Smells (https://github.com/securego/gosec) (TODO, Create Algorithm)
+        - Amount of code smells in the repository.
+        - Code smells severity average.
+    - Ratio of Open Issues to Closed Issues
+        - Amount of Open Issues
+        - Amount of Closed Issues
+- Thresholds of these amounts will be calculated, threshholds will be in values 0 - 5, where 2.5 is at middle of the amounts.
+- These values will be averaged in a single QM value. Correlation will be calculated ratio of library to original code lines, or ratio of sizes. Is there a correlation between bigger ratio and quality measure.
+
+### Usage of gosec
+
+- RUN: `$ gosec -fmt=json -out=results.json -stdout ./...`
+- Calculate the lengh of issues array inside the JSON.
+- Save that amount to the database.
 
 ---
