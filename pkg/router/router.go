@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/haapjari/glass/pkg/controllers/commit"
 	"github.com/haapjari/glass/pkg/controllers/repository"
 	"github.com/haapjari/glass/pkg/database"
 
@@ -16,6 +17,12 @@ func SetupRouter() {
 		c.Set("db", db)
 		c.Next()
 	})
+
+	r.GET("/api/glass/v1/commit", commit.GetCommits)
+	r.POST("/api/glass/v1/commit", commit.CreateCommit)
+	r.GET("/api/glass/v1/commit/:id", commit.GetCommitById)
+	r.DELETE("/api/glass/v1/commit:id", commit.DeleteCommitById)
+	r.PATCH("/api/glass/v1/commit:id", commit.UpdateCommitById)
 
 	r.GET("/api/glass/v1/repository", repository.GetRepositories)
 	r.POST("/api/glass/v1/repository", repository.CreateRepository)

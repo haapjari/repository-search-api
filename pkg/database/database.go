@@ -31,6 +31,7 @@ func SetupDatabase() *gorm.DB {
 
 	// Auto Creates Tables
 	db.AutoMigrate(&models.Repository{})
+	db.AutoMigrate(&models.Commit{})
 
 	return db
 }

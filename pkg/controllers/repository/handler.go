@@ -52,7 +52,7 @@ func (h *Handler) HandleCreateRepository() bool {
 		return false
 	}
 
-	e := models.Repository{Name: i.Name, Uri: i.Uri, CodeLines: i.CodeLines, IssueCount: i.IssueCount, LibraryCodeLines: i.LibraryCodeLines, RepositoryType: i.RepositoryType, ProjectType: i.ProjectType}
+	e := models.Repository{RepositoryName: i.RepositoryName, RepositoryUrl: i.RepositoryUrl, OpenIssueCount: i.OpenIssueCount, ClosedIssueCount: i.ClosedIssueCount, OriginalCodebaseSize: i.OriginalCodebaseSize, LibraryCodebaseSize: i.LibraryCodebaseSize, RepositoryType: i.RepositoryType, PrimaryLanguage: i.PrimaryLanguage}
 
 	h.DatabaseConnection.Create(&e)
 
