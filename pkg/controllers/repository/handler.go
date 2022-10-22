@@ -24,76 +24,70 @@ func NewHandler(c *gin.Context) *Handler {
 	return h
 }
 
-func (h *Handler) HandleGetRepositories() []models.Repository {
+func (h *Handler) HandleGetRepositories() {
 	var e []models.Repository
+
 	h.DatabaseConnection.Find(&e)
 
-	return e
+	h.Context.JSON(http.StatusOK, gin.H{"data": e})
 }
 
-func (h *Handler) HandleGetRepositoryById() models.Repository {
+func (h *Handler) HandleGetRepositoryById() {
 	var e models.Repository
 
 	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&e).Error; err != nil {
-		h.Context.JSON(http.StatusBadRequest, gin.H{"error": "entity not found!"})
-
-		return e
+		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	return e
+	h.Context.JSON(http.StatusOK, gin.H{"data": e})
 }
 
-func (h *Handler) HandleCreateRepository() bool {
+func (h *Handler) HandleCreateRepository() {
 	var i models.Repository
 
 	if err := h.Context.ShouldBindJSON(&i); err != nil {
 		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-
-		return false
 	}
 
-	e := models.Repository{RepositoryName: i.RepositoryName, RepositoryUrl: i.RepositoryUrl, OpenIssueCount: i.OpenIssueCount, ClosedIssueCount: i.ClosedIssueCount, OriginalCodebaseSize: i.OriginalCodebaseSize, LibraryCodebaseSize: i.LibraryCodebaseSize, RepositoryType: i.RepositoryType, PrimaryLanguage: i.PrimaryLanguage}
+	r := models.Repository{RepositoryName: i.RepositoryName, RepositoryUrl: i.RepositoryUrl, OpenIssueCount: i.OpenIssueCount, ClosedIssueCount: i.ClosedIssueCount, OriginalCodebaseSize: i.OriginalCodebaseSize, LibraryCodebaseSize: i.LibraryCodebaseSize, RepositoryType: i.RepositoryType, PrimaryLanguage: i.PrimaryLanguage}
 
-	h.DatabaseConnection.Create(&e)
+	h.DatabaseConnection.Create(&r)
 
-	return true
+	h.Context.JSON(http.StatusOK, gin.H{"data": r})
 }
 
-func (h *Handler) HandleDeleteRepositoryById() bool {
+func (h *Handler) HandleDeleteRepositoryById() {
 	var r models.Repository
 
 	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&r).Error; err != nil {
-		h.Context.JSON(http.StatusBadRequest, gin.H{"error": "record not found!"})
-		return false
+		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
 	h.DatabaseConnection.Delete(&r)
 
-	return true
+	h.Context.JSON(http.StatusOK, gin.H{"succeed": r})
 }
 
-func (h *Handler) HandleUpdateRepositoryById() models.Repository {
-	var dataEntity models.Repository
+func (h *Handler) HandleUpdateRepositoryById() {
+	var r models.Repository
 
-	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&dataEntity).Error; err != nil {
-		h.Context.JSON(http.StatusBadRequest, gin.H{"error": "record not found!"})
-
-		return dataEntity
-	}
-
-	var input models.Repository
-	if err := h.Context.ShouldBindJSON(&input); err != nil {
+	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&r).Error; err != nil {
 		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return dataEntity
 	}
 
-	h.DatabaseConnection.Model(&dataEntity).Updates(input)
+	var i models.Repository
 
-	return dataEntity
+	if err := h.Context.ShouldBindJSON(&i); err != nil {
+		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
+	h.DatabaseConnection.Model(&r).Updates(i)
+
+	h.Context.JSON(http.StatusOK, gin.H{"data": r})
 }
 
 // TODO
-func (h *Handler) HandleFetchRepositories() bool {
+func (h *Handler) HandleFetchRepositories() {
 	count, _ := strconv.Atoi(h.Context.Query("amount"))
 	lang := h.Context.Query("lang")
 
@@ -115,6 +109,4 @@ func (h *Handler) HandleFetchRepositories() bool {
 
 	fmt.Println("")
 	fmt.Println(count, lang)
-
-	return true
 }
