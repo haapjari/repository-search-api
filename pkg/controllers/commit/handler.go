@@ -22,71 +22,68 @@ func NewHandler(c *gin.Context) *Handler {
 	return h
 }
 
-func (h *Handler) HandleGetCommits() []models.Commit {
+func (h *Handler) HandleGetCommits() {
 	var c []models.Commit
+
 	h.DatabaseConnection.Find(&c)
 
-	return c
+	h.Context.JSON(http.StatusOK, gin.H{"data": c})
 }
 
-func (h *Handler) HandleGetCommitById() models.Commit {
+func (h *Handler) HandleGetCommitById() {
 	var c models.Commit
 
 	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&c).Error; err != nil {
-		h.Context.JSON(http.StatusBadRequest, gin.H{"error": "entity not found!"})
-
-		return c
-	}
-
-	return c
-}
-
-func (h *Handler) HandleCreateCommit() bool {
-	var c models.Commit
-
-	if err := h.Context.ShouldBindJSON(&c); err != nil {
 		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-
-		return false
 	}
 
-	e := models.Commit{RepositoryId: c.RepositoryName, CommitDate: c.CommitDate, CommitUser: c.CommitDate}
-
-	h.DatabaseConnection.Create(&e)
-
-	return true
+	h.Context.JSON(http.StatusOK, gin.H{"data": c})
 }
 
-func (h *Handler) HandleDeleteCommitById() bool {
+func (h *Handler) HandleCreateCommit() {
+	var i models.Commit
+
+	if err := h.Context.ShouldBindJSON(&i); err != nil {
+		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
+	var c models.Commit
+
+	c.RepositoryName = i.RepositoryName
+	c.CommitDate = i.CommitDate
+	c.CommitUser = i.CommitUser
+
+	h.DatabaseConnection.Create(&c)
+
+	h.Context.JSON(http.StatusOK, gin.H{"data": c})
+}
+
+func (h *Handler) HandleDeleteCommitById() {
 	var c models.Commit
 
 	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&c).Error; err != nil {
-		h.Context.JSON(http.StatusBadRequest, gin.H{"error": "record not found!"})
-		return false
+		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
 	h.DatabaseConnection.Delete(&c)
 
-	return true
+	h.Context.JSON(http.StatusOK, gin.H{"succeed": c})
 }
 
-func (h *Handler) HandleUpdateCommitById() models.Commit {
+func (h *Handler) HandleUpdateCommitById() {
 	var c models.Commit
 
 	if err := h.DatabaseConnection.Where("id = ?", h.Context.Param("id")).First(&c).Error; err != nil {
-		h.Context.JSON(http.StatusBadRequest, gin.H{"error": "record not found!"})
-
-		return c
+		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
 	var i models.Commit
 
 	if err := h.Context.ShouldBindJSON(&i); err != nil {
 		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return c
 	}
 
 	h.DatabaseConnection.Model(&c).Updates(i)
 
-	return c
+	h.Context.JSON(http.StatusOK, gin.H{"data": c})
 }

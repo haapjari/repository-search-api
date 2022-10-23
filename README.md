@@ -21,7 +21,6 @@ This is Glass, a REST API written in Go, which aims to offers functionality to r
 
 ## TODO
 
-- PostgreSQL -> Redis, with Snapshots
 - README.md -file.
 - GitHub Actions Pipeline.
 - Unit Tests.
@@ -34,13 +33,6 @@ This is Glass, a REST API written in Go, which aims to offers functionality to r
 - Implement Grafana and Prometheus to collect stats on the research run.
 - Makefile -> Tasks (?)
 - Create a release, when the first iteration is complete.
-- Test the endpoints.
-    - Commit
-        - GET / - not tested
-        - POST / - not tested
-        - GET /:id - not tested
-        - PATCH /:id - not tested
-        - DELETE /:id - not tested
 
 ---
 

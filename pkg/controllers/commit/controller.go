@@ -1,8 +1,6 @@
 package commit
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,35 +13,25 @@ type CommitController struct {
 
 func GetCommits(c *gin.Context) {
 	h := NewHandler(c)
-	e := h.HandleGetCommits()
-
-	c.JSON(http.StatusOK, gin.H{"data": e})
+	h.HandleGetCommits()
 }
 
 func GetCommitById(c *gin.Context) {
 	h := NewHandler(c)
-	e := h.HandleGetCommits()
-
-	c.JSON(http.StatusOK, gin.H{"data": e})
+	h.HandleGetCommitById()
 }
 
 func CreateCommit(c *gin.Context) {
 	h := NewHandler(c)
-	b := h.HandleCreateCommit()
-
-	c.JSON(http.StatusOK, gin.H{"data: ": b})
+	h.HandleCreateCommit()
 }
 
 func DeleteCommitById(c *gin.Context) {
 	h := NewHandler(c)
-	b := h.HandleDeleteCommitById()
-
-	c.JSON(http.StatusOK, gin.H{"data ": b})
+	h.HandleDeleteCommitById()
 }
 
 func UpdateCommitById(c *gin.Context) {
 	h := NewHandler(c)
-	e := h.HandleUpdateCommitById()
-
-	c.JSON(http.StatusOK, gin.H{"data": e})
+	h.HandleUpdateCommitById()
 }

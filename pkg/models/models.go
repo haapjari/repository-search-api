@@ -1,7 +1,7 @@
 package models
 
 type Repository struct {
-	RepositoryId         int    `json:"repository_id" gorm:"primary_key"`
+	Id                   int    `json:"id" gorm:"primary_key"`
 	RepositoryName       string `json:"repository_name"`
 	RepositoryUrl        string `json:"repository_url"`
 	OpenIssueCount       string `json:"open_issue_count"`
@@ -35,22 +35,19 @@ type UpdateRepositoryInput struct {
 }
 
 type Commit struct {
-	CommitId       string `json:"commit_id" gorm:"primary_key"`
-	RepositoryId   string `json:"repository_id"` // Is this necessary (?)
+	Id             int    `json:"id" gorm:"primary_key"`
 	RepositoryName string `json:"repository_name"`
 	CommitDate     string `json:"commit_date"`
 	CommitUser     string `json:"commit_user"`
 }
 
 type CreateCommitInput struct {
-	RepositoryId   string `json:"repository_id"` // Is this necessary (?)
 	RepositoryName string `json:"repository_name"`
 	CommitDate     string `json:"commit_date"`
 	CommitUser     string `json:"commit_user"`
 }
 
 type UpdateCommitInput struct {
-	RepositoryId   string `json:"repository_id"` // Is this necessary (?)
 	RepositoryName string `json:"repository_name"`
 	CommitDate     string `json:"commit_date"`
 	CommitUser     string `json:"commit_user"`
