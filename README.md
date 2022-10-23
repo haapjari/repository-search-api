@@ -1,6 +1,10 @@
 # Glass
 
-This is Glass, a REST API written in Go, which aims to offers functionality to research GitHub -repositories. This is intended to be a research tool, which is part of my Master's Thesis.
+This is **Glass**, a research tool which aims to offer functionality to measure quality of open-source repositories and libraries and return a single value called "Quality Measure" to represent state of repositories. Tool is used to create a data collection for my Master's thesis. Plugins represent the functionality, of what kind of repositories can be analyzed.
+
+## Plugins
+
+- *WIP*: Go
 
 ---
 
@@ -21,16 +25,13 @@ This is Glass, a REST API written in Go, which aims to offers functionality to r
 
 ## TODO
 
-- README.md -file.
-- GitHub Actions Pipeline.
-- Unit Tests.
+- Implement Grafana and Prometheus to collect stats on the research run.
 - Create a Dockerfile.
+- GitHub Actions Pipeline (?)
+- Unit Tests.
 - Secure the API.
-- Optimize the API.
 - Deploy to the cloud. What cloud service provider will be used?
 - Write some simple Swagger API documentation.
-- Implement a Logger (?)
-- Implement Grafana and Prometheus to collect stats on the research run.
 - Makefile -> Tasks (?)
 - Create a release, when the first iteration is complete.
 
@@ -38,34 +39,87 @@ This is Glass, a REST API written in Go, which aims to offers functionality to r
 
 ## Data Collection and Research
 
-### GraphQL
-
 - SourceGraph API, Query: `lang:go select:repo repohasfile:go.mod count:100000`
-- GitHub API
+    - Repository Name
+    - Repository URL
+
+```
+query {
+  search(query: "lang:go AND select:repo AND repohasfile:go.mod AND count:100000", version: V2) {
+    results {
+        repositories {
+            name
+        }
+    }
+  }
+}
+```
+
+- GitHub GraphQL API: Following Query Returns
+    - Total Count of Commits in Repository
+    - Total Count of Open Issues in Repository
+    - Total Count of Closed Issues in Repository
+    - Total Size of the Repository
+
+```
+query {
+        repository(owner: "TBD", name: "TBD") {
+            defaultBranchRef {
+                target {
+                    ... on Commit {
+                        history {
+                            totalCount
+                        }
+                    }
+                }
+            }
+            openIssues: issues(states:OPEN) {
+                totalCount
+            }
+            closedIssues: issues(states:CLOSED) {
+                totalCount
+            }
+            languages {
+                totalSize
+            }
+        }
+}
+```
+
+- `script/list_commits.sh`
+    - Amount of Collaborators in the Repository
+    - Total Count of Commits in Repository
+    - Every Commit in the Repository
+    - Date of Commit in the Repository
+    - Author of Commit in the Repository
+
+
+- `gosec -fmt=json -out=results.json -stdout ./...`
+    - Total Count of Code Smells in Repository
 
 ---
 
 ### Quality Measure
 
-- Quality Measure:
-    - Repository Activity (higher is better)
-        - Amount of commits, with dates. (TODO, How-To Query with GraphQL)
-    - Maintenance (higher is better)
-        - Amount of collabolators (TODO, How-To Query with GraphQL)
-    - Code Smells (https://github.com/securego/gosec) (less is better) (TODO, Create Algorithm)
-        - Amount of code smells in the repository.
+- Repository Activity: Higher -> Better
+    - Amount of commits, with dates.
+- Maintenance: Higher -> Better
+    - Collaborators 
+- Code Smells (https://github.com/securego/gosec): Less -> Better
+    - Total Count of code smells in the repository.
         - Code smells severity average.
-    - Ratio of Open Issues to Closed Issues (less is better)
-        - Amount of Open Issues
-        - Amount of Closed Issues
-- Thresholds of these amounts will be calculated, threshholds will be in values 0 - 5, where 2.5 is at middle of the amounts.
+- Ratio of Open Issues to Closed Issues: Less -> Better
+    - Amount of Open Issues
+    - Amount of Closed Issues
+- Thresholds of these amounts will be calculated, threshholds will be inbeween 0-5, where 2.5 is at middle of the amounts.
 - These values will be averaged in a single QM value. Correlation will be calculated ratio of library to original code lines, or ratio of sizes. Is there a correlation between bigger ratio and quality measure.
 
-### Usage of gosec
+#### Derivative Information
 
-- RUN: `$ gosec -fmt=json -out=results.json -stdout ./...`
-- Calculate the lengh of issues array inside the JSON.
-- Save that amount to the database.
+- Ratio: Library Codebase Size / Original Codebase Size
+- Ratio: Open Issues / Closed Issues
+- Commit Activity
+- Maintentance: Collaborator Activity
 
 ---
 
@@ -77,12 +131,5 @@ This is Glass, a REST API written in Go, which aims to offers functionality to r
 - Table: "Commits"
     - Primary Key: CommitId
     - Columns: RepositoryId, Commit Date, Commit User, Repository Name
-
-### Derivative Information
-
-- Ratio: Library Codebase Size / Original Codebase Size
-- Ratio: Open Issues / Closed Issues
-- Commit Activity
-- Maintentance: Collaborator Activity
 
 ---

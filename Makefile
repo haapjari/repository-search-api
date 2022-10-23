@@ -7,9 +7,6 @@ test:
 	go mod tidy
 	mkdir out && go test -v -coverprofile out/cover.out ./...
 
-run-dev:
-	nodemon --exec go run ${MAIN_MODULE} --signal SIGTERM
-
 build:
 	go build -o ${OUTPUT_PATH} ${MAIN_MODULE}
 
@@ -33,12 +30,3 @@ database-stop:
 
 database-exec:
 	sudo -u postgres psql
-
-add:
-	git add .
-
-commit:
-	git commit -m $(msg)
-	git tag ${REPOSITORY_TAG}
-	git push
-	git push --tags
