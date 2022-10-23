@@ -42,20 +42,13 @@ func UpdateRepositoryById(c *gin.Context) {
 func FetchRepositories(c *gin.Context) {
 	h := NewHandler(c)
 
-	if c.Query("project_type") == "go" {
-
-		// Method fetches desired amount of repositories from GitHub, through GitHub API
-		// and saves those repositories to "repositories" -table in the local PostgreSQL.
+	if c.Query("type") == "go" {
+		// Method fetches desired amount of repositories from GitHub, through SourceGraph GraphQL API
+		// and saves those repositories to "repositories" -table in the PostgreSQL instance.
 		h.HandleFetchRepositories()
-
-		// Creates new instance of NpmCounter, which is a plugin, that is capable of calculating
-		// the amount of Code Lines in the npm -repository. All the data is saved in the
-		// database.
-		// c := npm.NewNpmCounter()
-		// c.CalculateCodeLines()
 	}
 
-	if !(c.Query("project_type") == "go") {
+	if !(c.Query("type") == "go") {
 		c.JSON(http.StatusOK, gin.H{"data": "not supported"})
 	}
 }

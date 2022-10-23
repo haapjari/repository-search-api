@@ -1,4 +1,4 @@
-package npm
+package plugins
 
 import (
 	"fmt"

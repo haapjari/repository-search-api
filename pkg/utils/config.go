@@ -15,12 +15,18 @@ func GetDatabaseUser() interface{} {
 	return viper.Get("POSTGRES_USER")
 }
 
-func GetBaseUrl() string {
+func GetGithubGraphQlApiBaseurl() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
 
-	return fmt.Sprint(viper.Get("API_BASEURL"))
+	return fmt.Sprint(viper.Get("GITHUB_GRAPHQL_API_BASEURL"))
+}
 
+func GetSourceGraphGraphQlApiBaseurl() string {
+	viper.SetConfigFile("env")
+	viper.ReadInConfig()
+
+	return fmt.Sprint(viper.Get("SOURCEGRAPH_GRAPHQL_API_BASEURL"))
 }
 
 func GetDatabasePassword() interface{} {
