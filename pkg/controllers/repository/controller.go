@@ -43,9 +43,7 @@ func FetchRepositories(c *gin.Context) {
 	h := NewHandler(c)
 
 	if c.Query("type") == "go" {
-		// Method fetches desired amount of repositories from GitHub, through SourceGraph GraphQL API
-		// and saves those repositories to "repositories" -table in the PostgreSQL instance.
-		h.HandleFetchRepositories()
+		h.FetchRepositoryMetadata()
 	}
 
 	if !(c.Query("type") == "go") {

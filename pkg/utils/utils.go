@@ -2,10 +2,17 @@ package utils
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 
 	"github.com/haapjari/glass/pkg/models"
 )
+
+func LogErr(err error) {
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
 
 func RemoveElement(s []models.Repository, index int) []models.Repository {
 	ret := make([]models.Repository, 0)

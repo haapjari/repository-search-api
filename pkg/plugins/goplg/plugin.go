@@ -1,7 +1,12 @@
-package plugins
+package goplg
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strconv"
 
 	"github.com/haapjari/glass/pkg/utils"
 )
@@ -11,18 +16,89 @@ var (
 	GITHUB_USERNAME  string = fmt.Sprintf("%v", utils.GetGithubUsername())
 )
 
-type NpmCounter struct {
+type GoPlugin struct {
 	GitHubApiToken string
 	GitHubUsername string
+	HttpClient     *http.Client
+	Parser         *Parser
 }
 
-func NewNpmCounter() *NpmCounter {
-	return new(NpmCounter)
+func NewGoPlugin() *GoPlugin {
+	g := new(GoPlugin)
+
+	g.HttpClient = &http.Client{}
+	g.Parser = NewParser()
+
+	return g
 }
 
-func (n *NpmCounter) CalculateCodeLines() {
+func (g *GoPlugin) GetRepositoryMetadata(count int) {
+	g.getBaseMetadataFromSourceGraph(count)
+	g.enrichMetadataWithGitHubApi() // TODO
+}
+
+// PRIVATE METHODS
+
+func (g *GoPlugin) getBaseMetadataFromSourceGraph(count int) {
+	url := utils.GetSourceGraphGraphQlApiBaseurl()
+	queryStr := "{search(query:\"lang:go +  AND select:repo AND repohasfile:go.mod AND count:" + strconv.Itoa(count) + "\", version:V2){results{repositories{name}}}}"
+
+	rawReqBody := map[string]string{
+		"query": queryStr,
+	}
+
+	jsonReqBody, err := json.Marshal(rawReqBody)
+	utils.LogErr(err)
+
+	bytesReqBody := bytes.NewBuffer(jsonReqBody)
+
+	request, err := http.NewRequest("POST", url, bytesReqBody)
+	request.Header.Set("Content-Type", "application/json")
+	utils.LogErr(err)
+
+	res, err := g.HttpClient.Do(request)
+	utils.LogErr(err)
+
+	defer res.Body.Close()
+
+	resBody, err := ioutil.ReadAll(res.Body)
+	utils.LogErr(err)
+
+	resMap, err := g.Parser.ParseSourceGraphResponse(string(resBody))
+	utils.LogErr(err)
+
+	if resMap != nil {
+		for i := 0; i < count; i++ {
+			if resMap["repositories"].([]interface{})[i].(map[string]interface{}) != nil {
+				for _, value := range resMap["repositories"].([]interface{})[i].(map[string]interface{}) {
+					mapBody := map[string]string{
+						"repository_name": fmt.Sprintf("%v", value),
+						"repository_url":  fmt.Sprintf("%v", value),
+					}
+
+					jsonBody, err := json.Marshal(mapBody)
+					utils.LogErr(err)
+
+					reqBody := bytes.NewBuffer(jsonBody)
+
+					req, err := http.NewRequest("POST", utils.GetBaseurl()+"/"+"api/glass/v1/repository", reqBody)
+					req.Header.Set("Content-Type", "application/json")
+					utils.LogErr(err)
+
+					_, err = g.HttpClient.Do(req)
+					utils.LogErr(err)
+				}
+			}
+		}
+	}
+}
+
+func (g *GoPlugin) enrichMetadataWithGitHubApi() {
 	fmt.Println("TODO")
 }
+
+// --- --- --- --- --- --- //
+// --- --- --- --- --- --- //
 
 // 		// Construct a Request Object
 // 		req, err := http.NewRequest("GET", baseString+queryString, nil)
