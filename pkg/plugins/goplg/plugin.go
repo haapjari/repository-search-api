@@ -2,45 +2,64 @@ package goplg
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 
+	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
+	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
 
 var (
-	GITHUB_API_TOKEN string = fmt.Sprintf("%v", utils.GetGithubApiToken())
-	GITHUB_USERNAME  string = fmt.Sprintf("%v", utils.GetGithubUsername())
+	GITHUB_API_TOKEN                string = fmt.Sprintf("%v", utils.GetGithubApiToken())
+	GITHUB_USERNAME                 string = fmt.Sprintf("%v", utils.GetGithubUsername())
+	SOURCEGRAPH_GRAPHQL_API_BASEURL string = utils.GetSourceGraphGraphQlApiBaseurl()
+	GITHUB_GRAPHQL_API_BASEURL      string = utils.GetGithubGraphQlApiBaseurl()
+	REPOSITORY_API_BASEURL          string = utils.GetRepositoryApiBaseUrl()
 )
 
 type GoPlugin struct {
 	GitHubApiToken string
 	GitHubUsername string
 	HttpClient     *http.Client
+	GitHubClient   *http.Client
 	Parser         *Parser
+	DatabaseClient *gorm.DB
 }
 
-func NewGoPlugin() *GoPlugin {
+func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 	g := new(GoPlugin)
 
 	g.HttpClient = &http.Client{}
+	g.HttpClient.Timeout = time.Minute * 10 // TODO: Is this enough (?)
+
+	tokenSource := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: GITHUB_API_TOKEN},
+	)
+
+	g.GitHubClient = oauth2.NewClient(context.Background(), tokenSource)
+	g.DatabaseClient = DatabaseClient
+
 	g.Parser = NewParser()
 
 	return g
 }
 
 func (g *GoPlugin) GetRepositoryMetadata(count int) {
-	g.getBaseMetadataFromSourceGraph(count)
+	// g.getBaseMetadataFromSourceGraph(count)
 	g.enrichMetadataWithGitHubApi() // TODO
 }
 
 // PRIVATE METHODS
 
 func (g *GoPlugin) getBaseMetadataFromSourceGraph(count int) {
-	url := utils.GetSourceGraphGraphQlApiBaseurl()
 	queryStr := "{search(query:\"lang:go +  AND select:repo AND repohasfile:go.mod AND count:" + strconv.Itoa(count) + "\", version:V2){results{repositories{name}}}}"
 
 	rawReqBody := map[string]string{
@@ -52,7 +71,7 @@ func (g *GoPlugin) getBaseMetadataFromSourceGraph(count int) {
 
 	bytesReqBody := bytes.NewBuffer(jsonReqBody)
 
-	request, err := http.NewRequest("POST", url, bytesReqBody)
+	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, bytesReqBody)
 	request.Header.Set("Content-Type", "application/json")
 	utils.LogErr(err)
 
@@ -71,22 +90,8 @@ func (g *GoPlugin) getBaseMetadataFromSourceGraph(count int) {
 		for i := 0; i < count; i++ {
 			if resMap["repositories"].([]interface{})[i].(map[string]interface{}) != nil {
 				for _, value := range resMap["repositories"].([]interface{})[i].(map[string]interface{}) {
-					mapBody := map[string]string{
-						"repository_name": fmt.Sprintf("%v", value),
-						"repository_url":  fmt.Sprintf("%v", value),
-					}
-
-					jsonBody, err := json.Marshal(mapBody)
-					utils.LogErr(err)
-
-					reqBody := bytes.NewBuffer(jsonBody)
-
-					req, err := http.NewRequest("POST", utils.GetBaseurl()+"/"+"api/glass/v1/repository", reqBody)
-					req.Header.Set("Content-Type", "application/json")
-					utils.LogErr(err)
-
-					_, err = g.HttpClient.Do(req)
-					utils.LogErr(err)
+					r := models.Repository{RepositoryName: fmt.Sprintf("%v", value), RepositoryUrl: fmt.Sprintf("%v", value), OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
+					g.DatabaseClient.Create(&r)
 				}
 			}
 		}
@@ -94,325 +99,83 @@ func (g *GoPlugin) getBaseMetadataFromSourceGraph(count int) {
 }
 
 func (g *GoPlugin) enrichMetadataWithGitHubApi() {
-	fmt.Println("TODO")
+	// Read all the Repositories to Memory
+	// Parse URL of the first Repository
+	// Parse Owner and Name of the Repository
+
+	r := g.getAllRepositories()
+	c := len(r.RepositoryData)
+
+	var wg sync.WaitGroup
+
+	// TODO: is this goroutine necessary (?)
+	for i := 0; i < c; i++ {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			owner := g.Parser.ParseRepositoryOwner(r.RepositoryData[i].RepositoryUrl)
+			name := g.Parser.ParseRepositoryName(r.RepositoryData[i].RepositoryUrl)
+
+			fmt.Println(owner)
+			fmt.Println(name)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// owner := "sulu"
+	// name := "sulu"
+	// queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}}}"
+
+	// rawGithubRequestBody := map[string]string{
+	// 	"query": queryStr,
+	// }
+
+	// jsonGithubRequestBody, err := json.Marshal(rawGithubRequestBody)
+	// utils.LogErr(err)
+
+	// bytesReqBody := bytes.NewBuffer(jsonGithubRequestBody)
+
+	// githubRequest, err := http.NewRequest("POST", GITHUB_GRAPHQL_API_BASEURL, bytesReqBody)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+
+	// githubRequest.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	// githubResponse, err := g.GitHubClient.Do(githubRequest)
+	// utils.LogErr(err)
+
+	// defer githubResponse.Body.Close()
+
+	// githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
+	// utils.LogErr(err)
+
+	// // Parse Response Body to JSON
+	// var jsonGithubResponse GitHubResponse
+	// json.Unmarshal([]byte(githubResponseBody), &jsonGithubResponse)
+
+	// Save Values to Database Entries
 }
 
-// --- --- --- --- --- --- //
-// --- --- --- --- --- --- //
+func (g *GoPlugin) getAllRepositories() models.RepositoryResponse {
+	getRepositoriesRequest, err := http.NewRequest("GET", REPOSITORY_API_BASEURL, nil)
+	utils.LogErr(err)
 
-// 		// Construct a Request Object
-// 		req, err := http.NewRequest("GET", baseString+queryString, nil)
-// 		if err != nil {
-// 			log.Fatalln(err)
-// 		}
+	getRepositoriesRequest.Header.Set("Content-Type", "application/json")
 
-// 		// Execute Request Object
-// 		req.Header.Set("Accept", "application/vnd.github.v3+json")
-// 		src := oauth2.StaticTokenSource(
-// 			&oauth2.Token{AccessToken: GITHUB_API_TOKEN},
-// 		)
+	getRepositoriesResponse, err := g.HttpClient.Do(getRepositoriesRequest)
+	utils.LogErr(err)
 
-// 		client := oauth2.NewClient(context.Background(), src)
+	defer getRepositoriesResponse.Body.Close()
 
-// 		resp, err := client.Do(req)
-// 		if err != nil {
-// 			log.Fatalln(err)
-// 		}
+	getRepositoriesResponseBody, err := ioutil.ReadAll(getRepositoriesResponse.Body)
+	utils.LogErr(err)
 
-// 		// Read Response Body (Will be read as ByteStream)
-// 		body, err := ioutil.ReadAll(resp.Body)
-// 		if err != nil {
-// 			log.Fatalln(err)
-// 		}
+	var repositories models.RepositoryResponse
+	json.Unmarshal([]byte(getRepositoriesResponseBody), &repositories)
 
-// 		// Parse Response Body to JSON
-// 		var repositoryResponse models.RepositoryResponse
-// 		json.Unmarshal([]byte(body), &repositoryResponse)
-
-// 		// Read Batches Data to Slice and Write to Database
-// 		for _, item := range repositoryResponse.Items {
-// 			var repository models.Repository = models.Repository{Name: item.Name, Uri: item.Url}
-// 			db.Create(&repository)
-// 		}
-// 	}
-
-// 	return c
-// }
-
-// // Counts lines of code in project, that is listed in repositories table and counts lines
-// //
-// //	library code in that project. Writes individual library code in libraries table and
-// //	analyzed projects code in data_entties table.
-// func countLines(c *gin.Context) *gin.Context {
-
-// 	db := c.MustGet("db").(*gorm.DB)
-
-// 	var r models.Repository
-// 	var count int64
-
-// 	db.Model(&r).Count(&count)
-// 	countAsInteger := int(count)
-
-// 	var repositories []models.Repository
-// 	db.Find(&repositories)
-
-// 	// loop through repositories
-// 	for i := 0; i < countAsInteger; i++ {
-
-// 		// parse uri
-// 		var repositoryUri string = repositories[i].Uri + ".git"
-// 		repositoryUri = strings.ReplaceAll(repositoryUri, "api.", "")
-// 		repositoryUri = strings.ReplaceAll(repositoryUri, "repos/", "")
-
-// 		// parse name
-// 		var repositoryName string = repositories[i].Name
-
-// 		var flag bool
-// 		c, flag = utils.CheckIfAnalyzed(repositoryName, "main", c)
-// 		fmt.Println("Check if the Repository is already analyzed: ", flag)
-
-// 		var output []byte
-// 		if !flag {
-// 			output = utils.ExecuteInShell("git", "clone", repositoryUri)
-// 			fmt.Println("Clone the Repository: ", output)
-// 		}
-
-// 		if !flag {
-// 			utils.RunMainAnalysis(repositoryName, repositoryUri, db)
-// 		}
-
-// 		path := repositoryName + "/" + "package.json"
-
-// 		// Search for: "package.json"
-// 		if _, err := os.Stat(path); err == nil {
-
-// 			packageJson, err := ioutil.ReadFile(path)
-// 			utils.CheckError(err)
-
-// 			packageJsonAsString := string(packageJson)
-
-// 			if strings.Contains(packageJsonAsString, "dependencies") {
-// 				utils.RunLibraryAnalysis(packageJsonAsString, db, repositoryName, `"dependencies": {`)
-// 			}
-
-// 			if strings.Contains(packageJsonAsString, "devDependencies") {
-// 				utils.RunLibraryAnalysis(packageJsonAsString, db, repositoryName, `"devDependencies": {`)
-// 			}
-
-// 			if strings.Contains(packageJsonAsString, "peerDependencies") {
-// 				utils.RunLibraryAnalysis(packageJsonAsString, db, repositoryName, `"peerDependencies": {`)
-// 			}
-
-// 			if strings.Contains(packageJsonAsString, "optionalDependencies") {
-// 				utils.RunLibraryAnalysis(packageJsonAsString, db, repositoryName, `"optionalDependencies": {`)
-// 			}
-
-// 			if strings.Contains(packageJsonAsString, "bundledDependencies") {
-// 				utils.RunLibraryAnalysis(packageJsonAsString, db, repositoryName, `"bundledDependencies": {`)
-// 			}
-
-// 		} else if errors.Is(err, os.ErrNotExist) {
-// 			fmt.Println("Unable to locate: package.json")
-// 		} else {
-// 			fmt.Println("Unable to locate: package.json")
-// 		}
-
-// 		output = utils.ExecuteInShell("rm", "-rf", repositoryName)
-// 		fmt.Println("Delete the Repository: ", output)
-// 	}
-
-// 	return c
-// }
-
-// // Fetches Issue count for every repository, that is in data_entities table
-// func fetchIssues(c *gin.Context) *gin.Context {
-
-// 	// Initialize GORM
-// 	db := c.MustGet("db").(*gorm.DB)
-
-// 	// Fetch all the repositories to slice (Similar to GET all)
-// 	var dataEntities []models.Entity
-// 	db.Find(&dataEntities)
-
-// 	length := len(dataEntities)
-// 	for i := 0; i < length; i++ {
-// 		// If URI is not "" -> Parse
-
-// 		var parsedDataEntityUri string
-// 		var sliceOfDataEntityUri []string
-// 		var repositoryOwner string
-// 		var repositoryName string
-
-// 		if dataEntities[0].Uri != "" {
-// 			parsedDataEntityUri = strings.ReplaceAll(dataEntities[i].Uri, "https://github.com/", "")
-// 			parsedDataEntityUri = strings.ReplaceAll(parsedDataEntityUri, ".git", "")
-// 			sliceOfDataEntityUri = strings.Split(parsedDataEntityUri, "/")
-// 			repositoryOwner = string(sliceOfDataEntityUri[0])
-// 			repositoryName = string(sliceOfDataEntityUri[1])
-// 		}
-
-// 		// GraphQL Query
-// 		jsonData := map[string]string{
-// 			"query": `
-//             {
-//   				repository(owner:"` + repositoryOwner + `" name:"` + repositoryName + `") {
-//     				issues {
-//       					totalCount
-//     				}
-//   				}
-//             }
-//         `,
-// 		}
-
-// 		jsonValue, _ := json.Marshal(jsonData)
-
-// 		// Construct a Request Object
-// 		request, err := http.NewRequest("POST", "https://api.github.com/graphql", bytes.NewBuffer(jsonValue))
-// 		if err != nil {
-// 			log.Fatalln(err)
-// 		}
-
-// 		request.Header.Set("Accept", "application/vnd.github.v3+json")
-
-// 		src := oauth2.StaticTokenSource(
-// 			&oauth2.Token{AccessToken: GITHUB_API_TOKEN},
-// 		)
-
-// 		// If Issue Count is 0 -> Update it.
-// 		if dataEntities[i].Issct == 0 {
-// 			client := oauth2.NewClient(context.Background(), src)
-
-// 			response, err := client.Do(request)
-// 			utils.CheckError(err)
-// 			defer response.Body.Close()
-
-// 			body, err := ioutil.ReadAll(response.Body)
-// 			if err != nil {
-// 				log.Fatalln(err)
-// 			}
-
-// 			issueCount := strings.ReplaceAll(string(body), `{"data":{"repository":{"issues":{"totalCount":`, "")
-// 			issueCount = strings.ReplaceAll(issueCount, `}}}}`, "")
-// 			issueCountAsInteger, err := strconv.Atoi(issueCount)
-// 			utils.CheckError(err)
-
-// 			var d models.Entity
-// 			db.First(&d, "name LIKE ?", dataEntities[i].Name)
-// 			db.Model(&d).Update("Issct", issueCountAsInteger)
-// 		}
-// 	}
-
-// 	return c
-// }
-
-// // Removes empty entries from data_entities table
-// func removeEmptyEntriesFromDataEntities(c *gin.Context) *gin.Context {
-// 	// Initialize GORM
-// 	db := c.MustGet("db").(*gorm.DB)
-
-// 	// fetch all the repositories to array (Similar to GET all)
-// 	var dataEntities []models.Entity
-// 	db.Find(&dataEntities)
-
-// 	length := len(dataEntities)
-
-// 	for i := 0; i < length; i++ {
-// 		if dataEntities[i].Issct == 0 {
-// 			var dataEntity models.Entity
-// 			db.Where("id = ?", dataEntities[i].Id).First(&dataEntity)
-// 			db.Delete(&dataEntity)
-// 		}
-// 	}
-
-// 	for i := 0; i < length; i++ {
-// 		if dataEntities[i].Liblin == 0 {
-// 			var dataEntity models.Entity
-// 			db.Where("id = ?", dataEntities[i].Id).First(&dataEntity)
-// 			db.Delete(&dataEntity)
-// 		}
-// 	}
-
-// 	return c
-// }
-
-// // Removes empty entries from libraries table
-// func removeEmptyEntriesFromLibraries(c *gin.Context) *gin.Context {
-// 	// Initialize GORM
-// 	db := c.MustGet("db").(*gorm.DB)
-
-// 	// fetch all the repositories to array (Similar to GET all)
-// 	var libraries []models.Library
-// 	db.Find(&libraries)
-
-// 	length := len(libraries)
-
-// 	for i := 0; i < length; i++ {
-// 		if libraries[i].Liblin == 0 {
-// 			var library models.Library
-// 			db.Where("id = ?", libraries[i].Id).First(&library)
-// 			db.Delete(&library)
-// 		}
-
-// 	}
-
-// 	return c
-// }
-
-// // Fetches and Writes the Repositories to <repositories> table
-// func FetchRepositories(c *gin.Context) {
-// 	c = fetchMetadata(10, 100, c)
-
-// 	c.IndentedJSON(http.StatusOK, "Metadata Succesfully Fetched to Database!")
-// }
-
-// // Fetches data from data_entities table and convert that to data.csv / data/data.csv
-// func GenerateCsvFile(c *gin.Context) {
-
-// 	// Initialize GORM
-// 	db := c.MustGet("db").(*gorm.DB)
-
-// 	// fetch all the repositories to array (Similar to GET all)
-// 	var dataEntities []models.Entity
-// 	db.Find(&dataEntities)
-
-// 	sourceData := [][]string{
-// 		{"name", "uri", "original_code_lines", "library_code_lines", "issue_count"},
-// 	}
-
-// 	length := len(dataEntities)
-
-// 	for i := 0; i < length; i++ {
-// 		var stringSlice []string
-// 		stringSlice = append(stringSlice, dataEntities[i].Name)
-// 		stringSlice = append(stringSlice, dataEntities[i].Uri)
-// 		stringSlice = append(stringSlice, strconv.Itoa(dataEntities[i].Lin))
-// 		stringSlice = append(stringSlice, strconv.Itoa(dataEntities[i].Liblin))
-// 		stringSlice = append(stringSlice, strconv.Itoa(dataEntities[i].Issct))
-// 		sourceData = append(sourceData, stringSlice[:])
-// 	}
-
-// 	csvFile, err := os.Create("data/data.csv")
-
-// 	if err != nil {
-// 		log.Fatalf("failed creating file: %s", err)
-// 	}
-
-// 	csvWriter := csv.NewWriter(csvFile)
-
-// 	for _, row := range sourceData {
-// 		_ = csvWriter.Write(row)
-// 	}
-
-// 	csvWriter.Flush()
-// 	csvFile.Close()
-
-// 	c.IndentedJSON(http.StatusOK, "Converted Generated Data to CSV!")
-// }
-
-// // Enriches the data with lines of code and library lines.
-// func EnrichMetadata(c *gin.Context) {
-// 	c = countLines(c)
-// 	c = fetchIssues(c)
-
-// 	c.IndentedJSON(http.StatusOK, "Metadata Succesfully Enriched!")
-// }
+	return repositories
+}

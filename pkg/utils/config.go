@@ -8,6 +8,13 @@ import (
 
 // Single Point in Program to Fetch all the Environment Variables.
 
+func GetRepositoryApiBaseUrl() string {
+	viper.SetConfigFile(".env")
+	viper.ReadInConfig()
+
+	return fmt.Sprint(viper.Get("REPOSITORY_API_BASEURL"))
+}
+
 func GetDatabaseUser() interface{} {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()

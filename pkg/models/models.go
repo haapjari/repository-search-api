@@ -1,5 +1,9 @@
 package models
 
+type RepositoryResponse struct {
+	RepositoryData []Repository `json:"data"`
+}
+
 type Repository struct {
 	Id                   int    `json:"id" gorm:"primary_key"`
 	RepositoryName       string `json:"repository_name"`

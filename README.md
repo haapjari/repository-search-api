@@ -1,6 +1,6 @@
 # Glass
 
-This is **Glass**, a research tool which aims to offer functionality to measure quality of open-source repositories and libraries and return a single value called "Quality Measure" to represent state of repositories. Tool is used to create a data collection for my Master's thesis. Plugins represent the functionality, of what kind of repositories can be analyzed.
+This is **Glass**, a research tool which aims to offer functionality to measure quality of open-source repositories and libraries and return a single value called "Quality Measure" to represent state of repositories. Tool is used to create a dataset for my Master's Thesis. Plugins represent the functionality, of what kind of repositories can be analyzed.
 
 ## Plugins
 
@@ -25,15 +25,15 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
 
 ## TODO
 
-- Implement Grafana and Prometheus to collect stats on the research run.
-- Create a Dockerfile.
-- GitHub Actions Pipeline (?)
-- Unit Tests.
-- Secure the API.
-- Deploy to the cloud. What cloud service provider will be used?
-- Write some simple Swagger API documentation.
+- Grafana and Prometheus (https://www.youtube.com/watch?v=pP2DKCKR4CQ)
+- Dockerfile
+- GitHub Actions 
+- Unit Tests
+- Harden
+- Deployment
+- Swagger API
 - Makefile -> Tasks (?)
-- Create a release, when the first iteration is complete.
+- Logic
 
 ---
 
