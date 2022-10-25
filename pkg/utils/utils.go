@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os/exec"
 
@@ -26,6 +28,14 @@ func ExecuteInShell(app string, arg string, target string) []byte {
 	out, err := cmd.Output()
 	CheckError(err)
 	return out
+}
+
+func WriteToFile(data any, fileName string) {
+	file, err := json.MarshalIndent(data, "", " ")
+	LogErr(err)
+
+	err = ioutil.WriteFile(fileName+".json", file, 0644)
+	LogErr(err)
 }
 
 // Analyze libraries of packageJsonAsString and write them into repositoryNames element

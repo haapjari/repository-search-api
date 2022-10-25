@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -29,16 +30,17 @@ type GoPlugin struct {
 	GitHubApiToken string
 	GitHubUsername string
 	HttpClient     *http.Client
-	GitHubClient   *http.Client
 	Parser         *Parser
 	DatabaseClient *gorm.DB
+	GitHubClient   *http.Client
+	MaxThreads     int
 }
 
 func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 	g := new(GoPlugin)
 
 	g.HttpClient = &http.Client{}
-	g.HttpClient.Timeout = time.Minute * 10 // TODO: Is this enough (?)
+	g.HttpClient.Timeout = time.Minute * 10 // TODO: Environment Variable
 
 	tokenSource := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: GITHUB_API_TOKEN},
@@ -46,6 +48,7 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 
 	g.GitHubClient = oauth2.NewClient(context.Background(), tokenSource)
 	g.DatabaseClient = DatabaseClient
+	g.MaxThreads = 20
 
 	g.Parser = NewParser()
 
@@ -53,129 +56,146 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 }
 
 func (g *GoPlugin) GetRepositoryMetadata(count int) {
-	// g.getBaseMetadataFromSourceGraph(count)
-	g.enrichMetadataWithGitHubApi() // TODO
+	g.fetchRepositories(count)
+	g.enrichRepositoriesWithPrimaryData()
+	g.enrichRepositoriesWithLibraryData() // TODO
 }
+
+// TODO
+// func (g *GoPlugin) GetCommitMetadata() {
+// }
 
 // PRIVATE METHODS
 
-func (g *GoPlugin) getBaseMetadataFromSourceGraph(count int) {
+// TODO
+func (g *GoPlugin) enrichRepositoriesWithLibraryData() {
+	fmt.Println("Hello World")
+}
+
+// Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
+// parses the repository location to the database table.
+func (g *GoPlugin) fetchRepositories(count int) {
+	// Execute GraphQL request to SourceGraph with following hardcoded Query String.
 	queryStr := "{search(query:\"lang:go +  AND select:repo AND repohasfile:go.mod AND count:" + strconv.Itoa(count) + "\", version:V2){results{repositories{name}}}}"
 
 	rawReqBody := map[string]string{
 		"query": queryStr,
 	}
 
+	// Parse Body to JSON
 	jsonReqBody, err := json.Marshal(rawReqBody)
 	utils.LogErr(err)
 
 	bytesReqBody := bytes.NewBuffer(jsonReqBody)
 
+	// Craft a Request
 	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, bytesReqBody)
 	request.Header.Set("Content-Type", "application/json")
 	utils.LogErr(err)
 
+	// Execute Request
 	res, err := g.HttpClient.Do(request)
 	utils.LogErr(err)
 
 	defer res.Body.Close()
 
-	resBody, err := ioutil.ReadAll(res.Body)
+	// Read all Bytes from the Response
+	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
 	utils.LogErr(err)
 
-	resMap, err := g.Parser.ParseSourceGraphResponse(string(resBody))
-	utils.LogErr(err)
+	// Parse bytes JSON.
+	var jsonSourceGraphResponse SourceGraphResponse
+	json.Unmarshal([]byte(sourceGraphResponseBody), &jsonSourceGraphResponse)
 
-	if resMap != nil {
-		for i := 0; i < count; i++ {
-			if resMap["repositories"].([]interface{})[i].(map[string]interface{}) != nil {
-				for _, value := range resMap["repositories"].([]interface{})[i].(map[string]interface{}) {
-					r := models.Repository{RepositoryName: fmt.Sprintf("%v", value), RepositoryUrl: fmt.Sprintf("%v", value), OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
-					g.DatabaseClient.Create(&r)
-				}
-			}
-		}
-	}
+	// Write the response to Database.
+	g.writeSourceGraphResponseToDatabase(len(jsonSourceGraphResponse.Data.Search.Results.Repositories), jsonSourceGraphResponse.Data.Search.Results.Repositories)
 }
 
-func (g *GoPlugin) enrichMetadataWithGitHubApi() {
-	// Read all the Repositories to Memory
-	// Parse URL of the first Repository
-	// Parse Owner and Name of the Repository
-
+// Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
+// repositories, and appends the database entries with Open Issue Count, Closed Issue Count,
+// Commit Count, Original Codebase Size, Repository Type and Primary Language -values.
+func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 	r := g.getAllRepositories()
 	c := len(r.RepositoryData)
 
 	var wg sync.WaitGroup
 
-	// TODO: is this goroutine necessary (?)
+	// Semaphore is a safeguard to goroutines, to allow only "MaxThreads" run at the same time.
+	semaphore := make(chan int, g.MaxThreads)
+
 	for i := 0; i < c; i++ {
+		semaphore <- 1
 		wg.Add(1)
 
 		go func(i int) {
-			defer wg.Done()
+			// Parse Owner and Name values from the Repository, which are used in the GraphQL query.
+			owner, name := g.Parser.ParseRepository(r.RepositoryData[i].RepositoryUrl)
 
-			owner := g.Parser.ParseRepositoryOwner(r.RepositoryData[i].RepositoryUrl)
-			name := g.Parser.ParseRepositoryName(r.RepositoryData[i].RepositoryUrl)
+			queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}}}"
 
-			fmt.Println(owner)
-			fmt.Println(name)
+			rawGithubRequestBody := map[string]string{
+				"query": queryStr,
+			}
+
+			// Parse body to JSON.
+			jsonGithubRequestBody, err := json.Marshal(rawGithubRequestBody)
+			utils.LogErr(err)
+
+			bytesReqBody := bytes.NewBuffer(jsonGithubRequestBody)
+
+			// Craft a request.
+			githubRequest, err := http.NewRequest("POST", GITHUB_GRAPHQL_API_BASEURL, bytesReqBody)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			githubRequest.Header.Set("Accept", "application/vnd.github.v3+json")
+
+			// Execute a request with Oauth2 client.
+			githubResponse, err := g.GitHubClient.Do(githubRequest)
+			utils.LogErr(err)
+
+			defer githubResponse.Body.Close()
+
+			// Read the response bytes to a variable.
+			githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
+			utils.LogErr(err)
+
+			// Parse bytes to JSON.
+			var jsonGithubResponse GitHubResponse
+			json.Unmarshal([]byte(githubResponseBody), &jsonGithubResponse)
+
+			var existingRepositoryStruct models.Repository
+
+			// Search for existing model, which matches the id and copy the values to the "existingRepositoryStruct" variable.
+			if err := g.DatabaseClient.Where("id = ?", r.RepositoryData[i].Id).First(&existingRepositoryStruct).Error; err != nil {
+				utils.LogErr(err)
+			}
+
+			// Create new struct, with updated values.
+			var newRepositoryStruct models.Repository
+
+			newRepositoryStruct.RepositoryName = name
+			newRepositoryStruct.RepositoryUrl = r.RepositoryData[i].RepositoryUrl
+			newRepositoryStruct.OpenIssueCount = strconv.Itoa(jsonGithubResponse.Data.Repository.OpenIssues.TotalCount)
+			newRepositoryStruct.ClosedIssueCount = strconv.Itoa(jsonGithubResponse.Data.Repository.ClosedIssues.TotalCount)
+			newRepositoryStruct.CommitCount = strconv.Itoa(jsonGithubResponse.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
+			newRepositoryStruct.OriginalCodebaseSize = strconv.Itoa(jsonGithubResponse.Data.Repository.Languages.TotalSize)
+			newRepositoryStruct.RepositoryType = "primary"
+			newRepositoryStruct.PrimaryLanguage = "go"
+
+			// Update the existing model, with values from the new struct.
+			g.DatabaseClient.Model(&existingRepositoryStruct).Updates(newRepositoryStruct)
+
+			defer func() { <-semaphore }()
 		}(i)
+		wg.Done()
 	}
 
 	wg.Wait()
 
-	// owner := "sulu"
-	// name := "sulu"
-	// queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}}}"
-
-	// rawGithubRequestBody := map[string]string{
-	// 	"query": queryStr,
-	// }
-
-	// jsonGithubRequestBody, err := json.Marshal(rawGithubRequestBody)
-	// utils.LogErr(err)
-
-	// bytesReqBody := bytes.NewBuffer(jsonGithubRequestBody)
-
-	// githubRequest, err := http.NewRequest("POST", GITHUB_GRAPHQL_API_BASEURL, bytesReqBody)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-
-	// githubRequest.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	// githubResponse, err := g.GitHubClient.Do(githubRequest)
-	// utils.LogErr(err)
-
-	// defer githubResponse.Body.Close()
-
-	// githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
-	// utils.LogErr(err)
-
-	// // Parse Response Body to JSON
-	// var jsonGithubResponse GitHubResponse
-	// json.Unmarshal([]byte(githubResponseBody), &jsonGithubResponse)
-
-	// Save Values to Database Entries
-}
-
-func (g *GoPlugin) getAllRepositories() models.RepositoryResponse {
-	getRepositoriesRequest, err := http.NewRequest("GET", REPOSITORY_API_BASEURL, nil)
-	utils.LogErr(err)
-
-	getRepositoriesRequest.Header.Set("Content-Type", "application/json")
-
-	getRepositoriesResponse, err := g.HttpClient.Do(getRepositoriesRequest)
-	utils.LogErr(err)
-
-	defer getRepositoriesResponse.Body.Close()
-
-	getRepositoriesResponseBody, err := ioutil.ReadAll(getRepositoriesResponse.Body)
-	utils.LogErr(err)
-
-	var repositories models.RepositoryResponse
-	json.Unmarshal([]byte(getRepositoriesResponseBody), &repositories)
-
-	return repositories
+	// When the Channel Length is not 0, there is still running Threads.
+	for !(len(semaphore) == 0) {
+		continue
+	}
 }

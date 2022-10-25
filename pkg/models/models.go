@@ -10,6 +10,7 @@ type Repository struct {
 	RepositoryUrl        string `json:"repository_url"`
 	OpenIssueCount       string `json:"open_issue_count"`
 	ClosedIssueCount     string `json:"closed_issue_count"`
+	CommitCount          string `json:"commit_count"`
 	OriginalCodebaseSize string `json:"original_codebase_size"`
 	LibraryCodebaseSize  string `json:"library_codebase_size"`
 	RepositoryType       string `json:"repository_type"`
@@ -21,6 +22,7 @@ type CreateRepositoryInput struct {
 	RepositoryUrl        string `json:"repository_url"`
 	OpenIssueCount       string `json:"open_issue_count"`
 	ClosedIssueCount     string `json:"closed_issue_count"`
+	CommitCount          string `json:"commit_count"`
 	OriginalCodebaseSize string `json:"original_codebase_size"`
 	LibraryCodebaseSize  string `json:"library_codebase_size"`
 	RepositoryType       string `json:"repository_type"`
@@ -32,6 +34,7 @@ type UpdateRepositoryInput struct {
 	RepositoryUrl        string `json:"repository_url"`
 	OpenIssueCount       string `json:"open_issue_count"`
 	ClosedIssueCount     string `json:"closed_issue_count"`
+	CommitCount          string `json:"commit_count"`
 	OriginalCodebaseSize string `json:"original_codebase_size"`
 	LibraryCodebaseSize  string `json:"library_codebase_size"`
 	RepositoryType       string `json:"repository_type"`

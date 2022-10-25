@@ -1,5 +1,7 @@
 package goplg
 
+// GitHub
+
 type GitHubResponse struct {
 	Data GitHubDataStruct `json:"data"`
 }
@@ -37,4 +39,26 @@ type GitHubClosedIssuesStruct struct {
 
 type GitHubLanguagesStruct struct {
 	TotalSize int `json:"totalSize"`
+}
+
+// SourceGraph
+
+type SourceGraphResponse struct {
+	Data SourceGraphDataStruct `json:"data"`
+}
+
+type SourceGraphDataStruct struct {
+	Search SourceGraphSearchStruct `json:"search"`
+}
+
+type SourceGraphSearchStruct struct {
+	Results SourceGraphResultsStruct `json:"results"`
+}
+
+type SourceGraphResultsStruct struct {
+	Repositories []SourceGraphRepositoriesStruct `json:"repositories"`
+}
+
+type SourceGraphRepositoriesStruct struct {
+	Name string `json:"name"`
 }

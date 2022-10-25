@@ -3,7 +3,7 @@ package goplg
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"strings"
 )
 
 type Parser struct {
@@ -13,16 +13,14 @@ func NewParser() *Parser {
 	return new(Parser)
 }
 
-func (p *Parser) ParseRepositoryName(url string) string {
-	fmt.Println(url)
+func (p *Parser) ParseRepository(url string) (string, string) {
+	if strings.Contains(url, "github.com") {
+		urlArray := strings.Split(url, "/")
 
-	return ""
-}
+		return urlArray[1], urlArray[2]
+	}
 
-func (p *Parser) ParseRepositoryOwner(url string) string {
-	fmt.Println(url)
-
-	return ""
+	return "", ""
 }
 
 func (p *Parser) ParseSourceGraphResponse(data string) (map[string]interface{}, error) {
