@@ -57,6 +57,7 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 
 func (g *GoPlugin) GetRepositoryMetadata(count int) {
 	g.fetchRepositories(count)
+	// g.deleteDuplicateRepositories // TODO
 	g.enrichRepositoriesWithPrimaryData()
 	g.enrichRepositoriesWithLibraryData() // TODO
 }
@@ -69,6 +70,11 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 
 // TODO
 func (g *GoPlugin) enrichRepositoriesWithLibraryData() {
+	// Query: f:^go.mod$ repo:kubernetes/kubernetes -> SourceGraph returns the go.mod -file. Content can be parsed from there.
+
+	// Parser: https://pkg.go.dev/golang.org/x/mod@v0.6.0/modfile
+	// https://pkg.go.dev/cmd/go/internal/modfile#Parse - Parses the data to file struct.
+
 	fmt.Println("Hello World")
 }
 

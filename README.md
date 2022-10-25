@@ -34,6 +34,11 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
 - Swagger API
 - Makefile -> Tasks (?)
 - Logic
+    - ~~Capability to fetch Repository Metadata~~
+    - ~~Capability to fetch Primary Type Data~~
+    - WIP: **Capability to fetch Library Type Data**
+    - Capability to fetch Commit Data on Repository Basis
+    - Capability to fetch Code Smells
 
 ---
 
