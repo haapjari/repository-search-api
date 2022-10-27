@@ -50,7 +50,7 @@ func (h *Handler) HandleCreateRepository() {
 		h.Context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	r := models.Repository{RepositoryName: i.RepositoryName, RepositoryUrl: i.RepositoryUrl, CommitCount: i.CommitCount, OpenIssueCount: i.OpenIssueCount, ClosedIssueCount: i.ClosedIssueCount, OriginalCodebaseSize: i.OriginalCodebaseSize, LibraryCodebaseSize: i.LibraryCodebaseSize, RepositoryType: i.RepositoryType, PrimaryLanguage: i.PrimaryLanguage}
+	r := models.Repository{RepositoryName: i.RepositoryName, RepositoryUrl: i.RepositoryUrl, CommitCount: i.CommitCount, OpenIssueCount: i.OpenIssueCount, ClosedIssueCount: i.ClosedIssueCount, OriginalCodebaseSize: i.OriginalCodebaseSize, LibraryCodebaseSize: i.LibraryCodebaseSize, RepositoryType: i.RepositoryType, PrimaryLanguage: i.PrimaryLanguage, CreationDate: i.CreationDate, StargazerCount: i.StargazerCount, LicenseInfo: i.LicenseInfo}
 
 	h.Database.Create(&r)
 

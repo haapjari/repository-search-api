@@ -59,7 +59,7 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 	g.fetchRepositories(count)
 	// g.deleteDuplicateRepositories // TODO
 	g.enrichRepositoriesWithPrimaryData()
-	g.enrichRepositoriesWithLibraryData() // TODO
+	// g.enrichRepositoriesWithLibraryData() // TODO
 }
 
 // TODO
@@ -71,9 +71,10 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 // TODO
 func (g *GoPlugin) enrichRepositoriesWithLibraryData() {
 	// Query: f:^go.mod$ repo:kubernetes/kubernetes -> SourceGraph returns the go.mod -file. Content can be parsed from there.
-
 	// Parser: https://pkg.go.dev/golang.org/x/mod@v0.6.0/modfile
 	// https://pkg.go.dev/cmd/go/internal/modfile#Parse - Parses the data to file struct.
+
+	// Create GraphQL Query to fetch the contents of the go.mod -file.
 
 	fmt.Println("Hello World")
 }
@@ -94,18 +95,18 @@ func (g *GoPlugin) fetchRepositories(count int) {
 
 	bytesReqBody := bytes.NewBuffer(jsonReqBody)
 
-	// Craft a Request
+	// Craft a request
 	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, bytesReqBody)
 	request.Header.Set("Content-Type", "application/json")
 	utils.LogErr(err)
 
-	// Execute Request
+	// Execute request
 	res, err := g.HttpClient.Do(request)
 	utils.LogErr(err)
 
 	defer res.Body.Close()
 
-	// Read all Bytes from the Response
+	// Read all bytes from the response
 	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
 	utils.LogErr(err)
 
@@ -119,7 +120,8 @@ func (g *GoPlugin) fetchRepositories(count int) {
 
 // Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
 // repositories, and appends the database entries with Open Issue Count, Closed Issue Count,
-// Commit Count, Original Codebase Size, Repository Type and Primary Language -values.
+// Commit Count, Original Codebase Size, Repository Type, Primary Language, Stargazers Count,
+// Creation Date, License.
 func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 	r := g.getAllRepositories()
 	c := len(r.RepositoryData)
@@ -137,7 +139,7 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 			// Parse Owner and Name values from the Repository, which are used in the GraphQL query.
 			owner, name := g.Parser.ParseRepository(r.RepositoryData[i].RepositoryUrl)
 
-			queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}}}"
+			queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}stargazerCount licenseInfo {key}createdAt primaryLanguage{name}}}"
 
 			rawGithubRequestBody := map[string]string{
 				"query": queryStr,
@@ -188,7 +190,10 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 			newRepositoryStruct.CommitCount = strconv.Itoa(jsonGithubResponse.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
 			newRepositoryStruct.OriginalCodebaseSize = strconv.Itoa(jsonGithubResponse.Data.Repository.Languages.TotalSize)
 			newRepositoryStruct.RepositoryType = "primary"
-			newRepositoryStruct.PrimaryLanguage = "go"
+			newRepositoryStruct.PrimaryLanguage = jsonGithubResponse.Data.Repository.PrimaryLanguage.Name
+			newRepositoryStruct.CreationDate = jsonGithubResponse.Data.Repository.CreatedAt
+			newRepositoryStruct.StargazerCount = strconv.Itoa(jsonGithubResponse.Data.Repository.StargazerCount)
+			newRepositoryStruct.LicenseInfo = jsonGithubResponse.Data.Repository.LicenseInfo.Key
 
 			// Update the existing model, with values from the new struct.
 			g.DatabaseClient.Model(&existingRepositoryStruct).Updates(newRepositoryStruct)

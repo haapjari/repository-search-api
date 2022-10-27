@@ -4,19 +4,19 @@ run:
 	go run ${MAIN_MODULE}
 
 test:
-	go mod tidy
-	mkdir out && go test -v -coverprofile out/cover.out ./...
+	go clean
+	go test ./...
 
-build:
+compile:
 	go build -o ${OUTPUT_PATH} ${MAIN_MODULE}
 
 run-bin:
 	${OUTPUT_PATH}
 
-build-docker:
+docker:
 	docker build --tag ${DOCKER_IMAGE} .
 
-run-docker:
+docker-run:
 	docker run -id -p 8080:8080 ${DOCKER_IMAGE}:${IMAGE_VERSION}
 
 database-start:

@@ -11,10 +11,22 @@ type GitHubDataStruct struct {
 }
 
 type GitHubRepositoryStruct struct {
-	DefaultBranchRef DefaultBranchRefStruct   `json:"defaultBranchRef"`
-	OpenIssues       GitHubOpenIssuesStruct   `json:"openIssues"`
-	ClosedIssues     GitHubClosedIssuesStruct `json:"closedIssues"`
-	Languages        GitHubLanguagesStruct    `json:"languages"`
+	DefaultBranchRef DefaultBranchRefStruct      `json:"defaultBranchRef"`
+	OpenIssues       GitHubOpenIssuesStruct      `json:"openIssues"`
+	ClosedIssues     GitHubClosedIssuesStruct    `json:"closedIssues"`
+	Languages        GitHubLanguagesStruct       `json:"languages"`
+	StargazerCount   int                         `json:"stargazerCount"`
+	CreatedAt        string                      `json:"createdAt"`
+	PrimaryLanguage  GitHubPrimaryLanguageStruct `json:"primaryLanguage"`
+	LicenseInfo      GitHubLicenseInfoStruct     `json:"licenseInfo"`
+}
+
+type GitHubLicenseInfoStruct struct {
+	Key string `json:"key"`
+}
+
+type GitHubPrimaryLanguageStruct struct {
+	Name string `json:"name"`
 }
 
 type DefaultBranchRefStruct struct {

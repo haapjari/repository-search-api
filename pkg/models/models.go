@@ -15,6 +15,9 @@ type Repository struct {
 	LibraryCodebaseSize  string `json:"library_codebase_size"`
 	RepositoryType       string `json:"repository_type"`
 	PrimaryLanguage      string `json:"primary_language"`
+	CreationDate         string `json:"creation_date"`
+	StargazerCount       string `json:"stargazer_count"`
+	LicenseInfo          string `json:"license_info"`
 }
 
 type CreateRepositoryInput struct {
@@ -27,6 +30,9 @@ type CreateRepositoryInput struct {
 	LibraryCodebaseSize  string `json:"library_codebase_size"`
 	RepositoryType       string `json:"repository_type"`
 	PrimaryLanguage      string `json:"primary_language"`
+	CreationDate         string `json:"creation_date"`
+	StargazerCount       string `json:"stargazer_count"`
+	LicenseInfo          string `json:"license_info"`
 }
 
 type UpdateRepositoryInput struct {
@@ -39,6 +45,9 @@ type UpdateRepositoryInput struct {
 	LibraryCodebaseSize  string `json:"library_codebase_size"`
 	RepositoryType       string `json:"repository_type"`
 	PrimaryLanguage      string `json:"primary_language"`
+	CreationDate         string `json:"creation_date"`
+	StargazerCount       string `json:"stargazer_count"`
+	LicenseInfo          string `json:"license_info"`
 }
 
 type Commit struct {
