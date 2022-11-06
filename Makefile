@@ -13,11 +13,14 @@ compile:
 run-bin:
 	${OUTPUT_PATH}
 
-docker:
-	docker build --tag ${DOCKER_IMAGE} .
+docker-build:
+	docker build --tag ${DOCKER_IMAGE}:latest .
 
 docker-run:
-	docker run -id -p 8080:8080 ${DOCKER_IMAGE}:${IMAGE_VERSION}
+	docker run -idt -p 8080:8080 --name ${DOCKER_IMAGE} --net glass_glass --ip ${DOCKER_STATIC_IP} ${DOCKER_IMAGE}:latest
+
+docker-compose:
+	docker-compose up -d
 
 database-start:
 	sudo service postgresql start

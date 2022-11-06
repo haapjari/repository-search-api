@@ -1,16 +1,18 @@
-# BUILDER IMAGE
-ARG     VERSION=bullseye
+FROM        golang:alpine
 
-FROM    golang:${VERSION} as builder
+ENV         GIN_MODE=release
+ENV         PORT=8080
 
-WORKDIR /usr/src/
+WORKDIR     /go/src/glass
 
-COPY    . .
+COPY        . .
 
-RUN     go mod download
+RUN         apk update && apk add --no-cache git
 
-RUN     go build -a -o glass cmd/main.go
+RUN         go get ./...
 
-RUN     export GIN_MODE=release
+RUN         go build -o ./bin/glass ./cmd/main.go
 
-CMD [ "./glass" ]
+EXPOSE      $PORT
+
+ENTRYPOINT ["./bin/glass"]

@@ -4,12 +4,14 @@ import (
 	"github.com/haapjari/glass/pkg/controllers/commit"
 	"github.com/haapjari/glass/pkg/controllers/repository"
 	"github.com/haapjari/glass/pkg/database"
+	"github.com/haapjari/glass/pkg/metrics/prom"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter() {
 	r := gin.Default()
+	prom := prom.NewProm()
 
 	db := database.SetupDatabase()
 
@@ -31,6 +33,8 @@ func SetupRouter() {
 	r.PATCH("/api/glass/v1/repository/:id", repository.UpdateRepositoryById)
 
 	r.GET("/api/glass/v1/repository/fetch", repository.FetchRepositories)
+
+	r.GET("/api/glass/v1/metrics", prom.Handler)
 
 	r.Run()
 }

@@ -39,16 +39,18 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
 
 ## TODO
 
-- Grafana and Prometheus (https://www.youtube.com/watch?v=pP2DKCKR4CQ)
-    - node-exporter: https://github.com/prometheus/node_exporter
+- Docker Compose
+    - ~~Grafana~~
+    - ~~Prometheus~~
+    - ~~Node Exporter~~
+    - cAdvisor
 - Dockerfile
-- GitHub Actions 
+    - Builder
+- GitHub Actions  (?)
 - Unit Tests
 - Harden
-- Deployment (?)
-    - Dockerize Application: https://www.mitrais.com/news-updates/how-to-dockerize-a-restful-api-with-golang-and-postgres/
+    - Authentication (?)
 - Swagger API Documentation
-- How to export to GitLab CI or GitHub Actions (?)
 - Logic
     - ~~Capability to fetch Repository Metadata~~
     - ~~Capability to fetch Primary Type Data~~
