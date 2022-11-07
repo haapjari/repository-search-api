@@ -50,20 +50,6 @@ func GetDatabasePassword() interface{} {
 	return viper.Get("POSTGRES_PASSWORD")
 }
 
-func GetPrimaryLanguage() string {
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
-
-	return fmt.Sprint(viper.Get("PRIMARY_LANGUAGE"))
-}
-
-func GetKeyword() string {
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
-
-	return fmt.Sprint(viper.Get("KEYWORD"))
-}
-
 func GetDatabaseName() interface{} {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()

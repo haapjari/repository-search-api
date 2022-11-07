@@ -17,7 +17,7 @@ docker-build:
 	docker build --tag ${DOCKER_IMAGE}:latest .
 
 docker-run:
-	docker run -idt -p 8080:8080 --name ${DOCKER_IMAGE} --net glass_glass --ip ${DOCKER_STATIC_IP} ${DOCKER_IMAGE}:latest
+	docker run -idt -p 8080:8080 --name ${DOCKER_IMAGE} --net ${DOCKER_NETWORK} --ip ${DOCKER_STATIC_IP} ${DOCKER_IMAGE}:latest
 
 docker-compose:
 	docker-compose up -d

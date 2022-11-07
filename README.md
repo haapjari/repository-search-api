@@ -39,17 +39,11 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
 
 ## TODO
 
-- Docker Compose
-    - ~~Grafana~~
-    - ~~Prometheus~~
-    - ~~Node Exporter~~
+- docker-compose.yml
     - cAdvisor
-- Dockerfile
-    - Builder
-- GitHub Actions  (?)
-- Unit Tests
-- Harden
-    - Authentication (?)
+    - Unable to mount environment variables to the container.
+- Dockerfile 
+    - Unable to Create Post Request from inside the container, getting `x509: certificate signed by unknown authority` error.
 - Swagger API Documentation
 - Logic
     - ~~Capability to fetch Repository Metadata~~
