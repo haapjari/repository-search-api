@@ -83,6 +83,8 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData() {
 // parses the repository location to the database table.
 func (g *GoPlugin) fetchRepositories(count int) {
 	// Execute GraphQL request to SourceGraph with following hardcoded Query String.
+
+	// Export this as a environment or configuration value.
 	queryStr := "{search(query:\"lang:go +  AND select:repo AND repohasfile:go.mod AND count:" + strconv.Itoa(count) + "\", version:V2){results{repositories{name}}}}"
 
 	rawReqBody := map[string]string{

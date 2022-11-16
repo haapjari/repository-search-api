@@ -44,6 +44,7 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
     - Unable to mount environment variables to the container.
 - Dockerfile 
     - Unable to Create Post Request from inside the container, getting `x509: certificate signed by unknown authority` error.
+- Authorization
 - Swagger API Documentation
 - Logic
     - ~~Capability to fetch Repository Metadata~~
