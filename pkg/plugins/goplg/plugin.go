@@ -69,12 +69,20 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 // PRIVATE METHODS
 
 // TODO
-func (g *GoPlugin) enrichRepositoriesWithLibraryData() {
+func (g *GoPlugin) enrichRepositoriesWithLibraryData(repository string) {
 	// Query: f:^go.mod$ repo:kubernetes/kubernetes -> SourceGraph returns the go.mod -file. Content can be parsed from there.
 	// Parser: https://pkg.go.dev/golang.org/x/mod@v0.6.0/modfile
 	// https://pkg.go.dev/cmd/go/internal/modfile#Parse - Parses the data to file struct.
 
-	// Create GraphQL Query to fetch the contents of the go.mod -file.
+	// ---
+
+	// Construct a GraphQL query, which matches the repository given as a parameter.
+	// Fetch the go.mod - file.
+	// Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
+	// Read the go.mod -content to a variable.
+	// Parse out the libraries from the go.mod to a struct in order to be able to manipulate the data.
+	// Generate "repository" entries from the libraries, fill in their data (name, url, open issues, closed issues, repository type, priamry language, creation date, stargazer count, license info) basicly everything except library codebase size, thats scoped out.
+	// Sum the "original_codebase_size"	's up and PUT that into the original entry of the repository.
 
 	fmt.Println("Hello World")
 }
@@ -82,9 +90,7 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData() {
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
 // parses the repository location to the database table.
 func (g *GoPlugin) fetchRepositories(count int) {
-	// Execute GraphQL request to SourceGraph with following hardcoded Query String.
-
-	// Export this as a environment or configuration value.
+	// TODO: Export this as a environment or configuration value.
 	queryStr := "{search(query:\"lang:go +  AND select:repo AND repohasfile:go.mod AND count:" + strconv.Itoa(count) + "\", version:V2){results{repositories{name}}}}"
 
 	rawReqBody := map[string]string{
