@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	parser "github.com/buger/jsonparser"
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
 	"golang.org/x/oauth2"
@@ -56,10 +57,10 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 }
 
 func (g *GoPlugin) GetRepositoryMetadata(count int) {
-	g.fetchRepositories(count)
+	// g.fetchRepositories(count) // Disabled for testing. // TODO: Enable
 	// g.deleteDuplicateRepositories // TODO
-	g.enrichRepositoriesWithPrimaryData()
-	// g.enrichRepositoriesWithLibraryData() // TODO
+	// g.enrichRepositoriesWithPrimaryData() // Disabled for testing. // TODO: Enable
+	g.enrichRepositoriesWithLibraryData("") // TODO
 }
 
 // TODO
@@ -69,22 +70,54 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 // PRIVATE METHODS
 
 // TODO
-func (g *GoPlugin) enrichRepositoriesWithLibraryData(repository string) {
+func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 	// Query: f:^go.mod$ repo:kubernetes/kubernetes -> SourceGraph returns the go.mod -file. Content can be parsed from there.
 	// Parser: https://pkg.go.dev/golang.org/x/mod@v0.6.0/modfile
 	// https://pkg.go.dev/cmd/go/internal/modfile#Parse - Parses the data to file struct.
 
 	// ---
 
-	// Construct a GraphQL query, which matches the repository given as a parameter.
-	// Fetch the go.mod - file.
+	// Query String for GraphQL Request
+	// TODO: Replace the hardcoded value with variable.
+	queryString := "{repository(name: \"github.com/kubernetes/kubernetes\") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
+
+	// Construct the Query
+	rawRequestBody := map[string]string{
+		"query": queryString,
+	}
+
+	// Parse Body to JSON
+	jsonRequestBody, err := json.Marshal(rawRequestBody)
+	utils.LogErr(err)
+
+	requestBodyInBytes := bytes.NewBuffer(jsonRequestBody)
+
+	// Craft a Request
+	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, requestBodyInBytes)
+	request.Header.Set("Content-Type", "application/json")
+	utils.LogErr(err)
+
+	// Execute Request
+	res, err := g.HttpClient.Do(request)
+	utils.LogErr(err)
+
+	defer res.Body.Close()
+
+	// Read all bytes from the response
+	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
+	utils.LogErr(err)
+
+	// Parse JSON with "https://github.com/buger/jsonparser"
+	goModContent, _, _, err := parser.Get(sourceGraphResponseBody, "data", "repository", "defaultBranch", "target", "commit", "blob", "content")
+	utils.LogErr(err)
+
+	fmt.Println(string(goModContent))
+
 	// Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
 	// Read the go.mod -content to a variable.
 	// Parse out the libraries from the go.mod to a struct in order to be able to manipulate the data.
 	// Generate "repository" entries from the libraries, fill in their data (name, url, open issues, closed issues, repository type, priamry language, creation date, stargazer count, license info) basicly everything except library codebase size, thats scoped out.
 	// Sum the "original_codebase_size"	's up and PUT that into the original entry of the repository.
-
-	fmt.Println("Hello World")
 }
 
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and

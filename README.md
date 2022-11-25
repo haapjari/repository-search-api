@@ -39,6 +39,7 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
 
 ## TODO
 
+- Support for monorepo, this only supports singlerepos.
 - docker-compose.yml
     - cAdvisor
     - Unable to mount environment variables to the container.
