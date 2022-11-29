@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	parser "github.com/buger/jsonparser"
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
+	JSONParser "github.com/tidwall/gjson"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -108,12 +108,27 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 	utils.LogErr(err)
 
 	// Parse JSON with "https://github.com/buger/jsonparser"
-	goModContent, _, _, err := parser.Get(sourceGraphResponseBody, "data", "repository", "defaultBranch", "target", "commit", "blob", "content")
-	utils.LogErr(err)
+	goModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
-	fmt.Println(string(goModContent))
+	// fmt.Println(goModFile.String())
 
-	// Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
+	goModFile.ForEach(func(key, value JSONParser.Result) bool {
+		// 		println(value.String())
+
+		if value.String() == "require" {
+			println("true")
+		}
+
+		return true // keep iterating
+	})
+
+	// WIP: Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
+
+	// Parsing:
+	// Count, how many times "require" occurs in a file.
+	// Create string slice, with as many slots, that there are requires.
+	// Parse the contents to the slice.
+
 	// Read the go.mod -content to a variable.
 	// Parse out the libraries from the go.mod to a struct in order to be able to manipulate the data.
 	// Generate "repository" entries from the libraries, fill in their data (name, url, open issues, closed issues, repository type, priamry language, creation date, stargazer count, license info) basicly everything except library codebase size, thats scoped out.

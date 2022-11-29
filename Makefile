@@ -23,13 +23,7 @@ docker-compose:
 	docker-compose up -d
 
 database-start:
-	sudo service postgresql start
-
-database-status:
-	sudo service postgresql status
+	docker start postgres
 
 database-stop:
-	sudo service postgresql stop
-
-database-exec:
-	sudo -u postgres psql
+	docker stop postgres
