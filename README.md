@@ -205,5 +205,3 @@ query {
 - Table: "Commits"
     - Primary Key: CommitId
     - Columns: RepositoryId, Commit Date, Commit User, Repository Name
-
----
