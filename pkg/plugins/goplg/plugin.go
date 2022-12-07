@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -110,24 +111,16 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 	// Parse JSON with "https://github.com/buger/jsonparser"
 	goModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
-	// fmt.Println(goModFile.String())
+	splitCount := strings.Count(goModFile.String(), "require")
 
-	goModFile.ForEach(func(key, value JSONParser.Result) bool {
-		// 		println(value.String())
-
-		if value.String() == "require" {
-			println("true")
-		}
-
-		return true // keep iterating
-	})
+	fmt.Println(goModFile.String())
+	fmt.Println("---")
+	fmt.Println(splitCount)
 
 	// WIP: Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
 
 	// Parsing:
 	// Count, how many times "require" occurs in a file.
-	// Create string slice, with as many slots, that there are requires.
-	// Parse the contents to the slice.
 
 	// Read the go.mod -content to a variable.
 	// Parse out the libraries from the go.mod to a struct in order to be able to manipulate the data.
