@@ -50,10 +50,10 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
 - Logic
     - ~~Capability to fetch Repository Metadata~~
     - ~~Capability to fetch Primary Type Data~~
-    - WIP: **Capability to fetch Library Type Data**
-    - Capability to fetch Commit Data on Repository Basis
-    - Capability to fetch Code Smells (?)
-    - GoReportCard Integration (?)
+    - WIP: **Capability to fetch Library Type Data** -> Scoped out, there were so many corner cases, scoped this out.
+    - Capability to fetch Commit Data on Repository Basis -> Scoped out, for time limitations.
+    - Capability to fetch Code Smells (?) -> Scoped out, for time limitations.
+    - GoReportCard Integration (?) -> Scoped out, for time limitations.
 
 (?) - Will these be in the scope of thesis.
 
