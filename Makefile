@@ -3,6 +3,9 @@ include make.properties
 run:
 	go run ${MAIN_MODULE}
 
+air:
+	air
+
 test:
 	go clean
 	go test ./...

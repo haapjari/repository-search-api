@@ -6,9 +6,9 @@ Hello! I am Jari Haapasaari ([mail](mailto:haapjari@gmail.com)), and I am buildi
 
 ## About
 
-This is **Glass**, a research tool which aims to offer functionality to measure quality of open-source repositories and libraries and return a single value called "Quality Measure" to represent state of repositories. **Glass** is essentially an API, that collects data from multiple datasources, such as SourceGraph GraphQL API, GitHub GraphQL API and GitHub REST API, and combines that to meaningful form, that can be analyzed. 
+This is **Glass**, a research tool which aims to offer data collection capabilities to measure quality of open-source repositories and return a single value called "Quality Measure" to represent state of repositories. **Glass** is essentially an API, that collects data from multiple datasources, such as SourceGraph GraphQL API, GitHub GraphQL API and GitHub REST API, and combines that to meaningful form, that can be analyzed. 
 
-**Glass** is going to be used to create a dataset for my thesis, where I am researching topic `Effects Software Reuse to Quality of Codebase`. 
+**Glass** is going to be used to create a dataset for my thesis.
 
 ---
 
@@ -39,23 +39,10 @@ This is **Glass**, a research tool which aims to offer functionality to measure 
 
 ## TODO
 
-- Support for monorepo, this only supports singlerepos.
-- docker-compose.yml
-    - cAdvisor
-    - Unable to mount environment variables to the container.
+- Library Data
+    - Library parsing is done with analyzing `go.mod` -files.
 - Dockerfile 
     - Unable to Create Post Request from inside the container, getting `x509: certificate signed by unknown authority` error.
-- Authorization
-- Swagger API Documentation
-- Logic
-    - ~~Capability to fetch Repository Metadata~~
-    - ~~Capability to fetch Primary Type Data~~
-    - WIP: **Capability to fetch Library Type Data** -> Scoped out, there were so many corner cases, scoped this out.
-    - Capability to fetch Commit Data on Repository Basis -> Scoped out, for time limitations.
-    - Capability to fetch Code Smells (?) -> Scoped out, for time limitations.
-    - GoReportCard Integration (?) -> Scoped out, for time limitations.
-
-(?) - Will these be in the scope of thesis.
 
 ---
 
@@ -122,78 +109,34 @@ query {
 }
 ```
 
-### Libraries
-
-- SourceGraph GraphQL API
-
-```
-query {
- repository(name: "github.com/TBD/TBD") {
-    defaultBranch {
-      target {
-        commit {
-          blob(path: "go.mod") {
-            content
-          }
-        }
-      }
-    }
-  }
-}
-
-```
-
-- Following query returns the content of the "go.mod" - which can be used to parse the dependencies.
-
----
-
-### Commits
-
-<!-- TODO: Think, will this be implemented in the scope of the thesis. -->
-- `script/list_commits.sh` 
-    - Total Count of Commits in Repository
-    - Every Commit in the Repository
-    - Date of Commit in the Repository
-    - Author of Commit in the Repository
-- See: https://docs.github.com/en/rest/commits/commits
-
----
-
-<!-- TODO: Think, will this be implemented in the scope of the thesis. -->
-### Code Smells
-- `gosec -fmt=json -out=results.json -stdout ./...`
-    - Total Count of Code Smells in Repository
-
 ---
 
 ### Quality Measure
 
 - Repository Activity: Higher -> Better
-    - Amount of commits, with dates. 
-- Maintenance: Higher -> Better
-    - Collaborators  
-- Code Smells (https://github.com/securego/gosec): Less -> Better
-    - Total Count of code smells in the repository.
-        - Code smells severity average.
+    - Amount of commits.
+- Maintainers: Higher -> Better
+    - Amount of maintainers. 
 - Ratio of Open Issues to Closed Issues: Less -> Better
     - Amount of Open Issues
     - Amount of Closed Issues
-- Thresholds of these amounts will be calculated, threshholds will be inbeween 0-5, where 2.5 is at middle of the amounts.
-- These values will be averaged in a single QM value. Correlation will be calculated ratio of library to original code lines, or ratio of sizes. Is there a correlation between bigger ratio and quality measure.
-- Stars: Higher -> Better
-    - Determines the popularity of the repository.
-    - TODO: Refactor to use "Imports", when `https://pkg.go.dev/` has an API. (Follow: https://github.com/golang/go/issues/36785)
 - Creation Date: Older -> Better
     - Might be an indicator of maturity of the repository.
+- Stars: Higher -> Better
+    - Determines the popularity of the repository.
+
+Thresholds of these amounts will be calculated, thresholds will be inbeween 0-5, where 2.5 is at middle of the amounts.
+
+These values will be averaged in a single QM value. Correlation will be calculated ratio of library to original code lines, or ratio of sizes. Is there a correlation between bigger ratio and quality measure.
 
 #### Derivative Information
 
-- Ratio: Library Codebase Size / Original Codebase Size
-- Ratio: Open Issues / Closed Issues
-- Commit Activity
-- Maintentance: Collaborator Activity
-- Which size packages are used in ratio (?)
-- What license does repository use.
+- Correlation:
+    - QM / Original Codebase Size
+    - QM / Ratio of (Open Issues / Closed Issues)
+    - QM / Maintainers
+    - QM / Creation Date
+    - QM / Stars
 
 ---
 
@@ -205,3 +148,5 @@ query {
 - Table: "Commits"
     - Primary Key: CommitId
     - Columns: RepositoryId, Commit Date, Commit User, Repository Name
+
+---

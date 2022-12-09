@@ -9,11 +9,13 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
+	JSONParser "github.com/tidwall/gjson"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -59,6 +61,8 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 	// g.fetchRepositories(count) // Disabled for testing. // TODO: Enable
 	// g.deleteDuplicateRepositories // TODO
 	// g.enrichRepositoriesWithPrimaryData() // Disabled for testing. // TODO: Enable
+
+	g.enrichRepositoriesWithLibraryData("")
 }
 
 // TODO
@@ -197,4 +201,60 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 	for !(len(semaphore) == 0) {
 		continue
 	}
+}
+
+// TODO
+func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
+	// Query String
+	// TODO: Replace URL from queryString with repositoryUrl
+	queryString := "{repository(name: \"github.com/kubernetes/kubernetes\") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
+
+	// Construct the Query
+	rawRequestBody := map[string]string{
+		"query": queryString,
+	}
+
+	// Parse Body to JSON
+	jsonRequestBody, err := json.Marshal(rawRequestBody)
+	utils.LogErr(err)
+
+	requestBodyInBytes := bytes.NewBuffer(jsonRequestBody)
+
+	// Craft a Request
+	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, requestBodyInBytes)
+	request.Header.Set("Content-Type", "application/json")
+	utils.LogErr(err)
+
+	// Execute Request
+	res, err := g.HttpClient.Do(request)
+	utils.LogErr(err)
+
+	defer res.Body.Close()
+
+	// Read all bytes from the response
+	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
+	utils.LogErr(err)
+
+	// Parse JSON with "https://github.com/buger/jsonparser"
+	goModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
+
+	if strings.Count(goModFile.String(), "replace") > 0 {
+		fmt.Println("Project has inner go.mod - files, which also needs to be parsed.")
+	}
+
+	// requireCount := strings.Count(goModFile.String(), "require")
+
+	// fmt.Println(goModFile.String())
+	fmt.Println("---")
+	// fmt.Println(requireCount)
+
+	// WIP: Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
+
+	// Parsing:
+	// Count, how many times "require" occurs in a file.
+
+	// Read the go.mod -content to a variable.
+	// Parse out the libraries from the go.mod to a struct in order to be able to manipulate the data.
+	// Generate "repository" entries from the libraries, fill in their data (name, url, open issues, closed issues, repository type, priamry language, creation date, stargazer count, license info) basicly everything except library codebase size, thats scoped out.
+	// Sum the "original_codebase_size"	's up and PUT that into the original entry of the repository.
 }
