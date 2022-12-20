@@ -26,6 +26,21 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 
 - See `Makefile`
 - Requires: `go`, `postgresql`
+- `.env` -file
+
+```
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_DB=
+POSTGRES_HOST=
+POSTGRES_PORT=
+GITHUB_USERNAME=
+GITHUB_API_TOKEN=
+GITHUB_GRAPHQL_API_BASEURL=
+SOURCEGRAPH_GRAPHQL_API_BASEURL=
+BASEURL=
+REPOSITORY_API_BASEURL=
+```
 
 ---
 
@@ -39,6 +54,11 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 
 ## TODO
 
+- Continue working with Library Parsing.
+- Cyclic Dependencies / Explicit Imports -> Go
+- Latest Version
+- Activity (?)
+- Latest Release
 - Library Data
     - Library parsing is done with analyzing `go.mod` -files.
 - Dockerfile 
@@ -75,6 +95,7 @@ query {
     - Primary Language
     - Stars Count
     - License Info
+    - Latest Release Date
 
 ```
 query {
@@ -104,6 +125,14 @@ query {
             stargazerCount
             licenseInfo {
                 key            
+            }
+            latestRelease {
+                name
+                publishedAt
+            latestRelease {
+                name
+                publishedAt
+            }
             }         
         }
 }
@@ -124,6 +153,10 @@ query {
     - Might be an indicator of maturity of the repository.
 - Stars: Higher -> Better
     - Determines the popularity of the repository.
+- Releases: Higher -> Better
+    - Determines the maturity of the repository, more releases might indicate more mature project.
+- Latest Release Date: More Recent -> Better
+    - If there are more than certain threshold amount of time from last release, might be worse.
 
 Thresholds of these amounts will be calculated, thresholds will be inbeween 0-5, where 2.5 is at middle of the amounts.
 

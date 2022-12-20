@@ -58,11 +58,11 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 }
 
 func (g *GoPlugin) GetRepositoryMetadata(count int) {
-	// g.fetchRepositories(count) // Disabled for testing. // TODO: Enable
+	g.fetchRepositories(count) // Disabled for testing. // TODO: Enable
 	// g.deleteDuplicateRepositories // TODO
-	// g.enrichRepositoriesWithPrimaryData() // Disabled for testing. // TODO: Enable
+	g.enrichRepositoriesWithPrimaryData() // Disabled for testing. // TODO: Enable
 
-	g.enrichRepositoriesWithLibraryData("")
+	//	g.enrichRepositoriesWithLibraryData("")
 }
 
 // TODO
@@ -131,7 +131,7 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 			// Parse Owner and Name values from the Repository, which are used in the GraphQL query.
 			owner, name := g.Parser.ParseRepository(r.RepositoryData[i].RepositoryUrl)
 
-			queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}stargazerCount licenseInfo {key}createdAt primaryLanguage{name}}}"
+			queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}stargazerCount licenseInfo {key}createdAt latestRelease{publishedAt} primaryLanguage{name}}}"
 
 			rawGithubRequestBody := map[string]string{
 				"query": queryStr,
@@ -186,6 +186,7 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 			newRepositoryStruct.CreationDate = jsonGithubResponse.Data.Repository.CreatedAt
 			newRepositoryStruct.StargazerCount = strconv.Itoa(jsonGithubResponse.Data.Repository.StargazerCount)
 			newRepositoryStruct.LicenseInfo = jsonGithubResponse.Data.Repository.LicenseInfo.Key
+			newRepositoryStruct.LatestRelease = jsonGithubResponse.Data.Repository.LatestRelease.PublishedAt
 
 			// Update the existing model, with values from the new struct.
 			g.DatabaseClient.Model(&existingRepositoryStruct).Updates(newRepositoryStruct)

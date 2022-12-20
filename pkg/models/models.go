@@ -18,6 +18,7 @@ type Repository struct {
 	CreationDate         string `json:"creation_date"`
 	StargazerCount       string `json:"stargazer_count"`
 	LicenseInfo          string `json:"license_info"`
+	LatestRelease        string `json:"latest_release"`
 }
 
 type CreateRepositoryInput struct {
@@ -33,6 +34,7 @@ type CreateRepositoryInput struct {
 	CreationDate         string `json:"creation_date"`
 	StargazerCount       string `json:"stargazer_count"`
 	LicenseInfo          string `json:"license_info"`
+	LatestRelease        string `json:"latest_release"`
 }
 
 type UpdateRepositoryInput struct {
@@ -48,6 +50,7 @@ type UpdateRepositoryInput struct {
 	CreationDate         string `json:"creation_date"`
 	StargazerCount       string `json:"stargazer_count"`
 	LicenseInfo          string `json:"license_info"`
+	LatestRelease        string `json:"latest_release"`
 }
 
 type Commit struct {

@@ -19,6 +19,11 @@ type GitHubRepositoryStruct struct {
 	CreatedAt        string                      `json:"createdAt"`
 	PrimaryLanguage  GitHubPrimaryLanguageStruct `json:"primaryLanguage"`
 	LicenseInfo      GitHubLicenseInfoStruct     `json:"licenseInfo"`
+	LatestRelease    LatestRelease               `json:"latestRelease"`
+}
+
+type LatestRelease struct {
+	PublishedAt string `json:"publishedAt"`
 }
 
 type GitHubLicenseInfoStruct struct {
