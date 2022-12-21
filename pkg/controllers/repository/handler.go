@@ -89,7 +89,7 @@ func (h *Handler) HandleUpdateRepositoryById() {
 
 func (h *Handler) FetchRepositoryMetadata() {
 	var count, err = strconv.Atoi(h.Context.Query("count"))
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	if h.Context.Query("type") == "go" {
 		plugin := goplg.NewGoPlugin(h.Database)

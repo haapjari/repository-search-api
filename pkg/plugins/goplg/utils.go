@@ -41,17 +41,17 @@ func (g *GoPlugin) writeSourceGraphResponseToDatabase(length int, repositories [
 // TODO: Refactor, to not to use HTTP requests (?)
 func (g *GoPlugin) getAllRepositories() models.RepositoryResponse {
 	getRepositoriesRequest, err := http.NewRequest("GET", REPOSITORY_API_BASEURL, nil)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	getRepositoriesRequest.Header.Set("Content-Type", "application/json")
 
 	getRepositoriesResponse, err := g.HttpClient.Do(getRepositoriesRequest)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	defer getRepositoriesResponse.Body.Close()
 
 	getRepositoriesResponseBody, err := ioutil.ReadAll(getRepositoriesResponse.Body)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	var repositories models.RepositoryResponse
 	json.Unmarshal([]byte(getRepositoriesResponseBody), &repositories)

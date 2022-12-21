@@ -10,7 +10,7 @@ import (
 	"github.com/haapjari/glass/pkg/models"
 )
 
-func LogErr(err error) {
+func CheckErr(err error) {
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -32,10 +32,10 @@ func ExecuteInShell(app string, arg string, target string) []byte {
 
 func WriteToFile(data any, fileName string) {
 	file, err := json.MarshalIndent(data, "", " ")
-	LogErr(err)
+	CheckErr(err)
 
 	err = ioutil.WriteFile(fileName+".json", file, 0644)
-	LogErr(err)
+	CheckErr(err)
 }
 
 // Analyze libraries of packageJsonAsString and write them into repositoryNames element

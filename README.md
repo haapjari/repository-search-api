@@ -8,7 +8,7 @@ Hello! I am Jari Haapasaari ([mail](mailto:haapjari@gmail.com)), and I am buildi
 
 This is **Glass**, a research tool which aims to offer data collection capabilities to measure quality of open-source repositories and return a single value called "Quality Measure" to represent state of repositories. **Glass** is essentially an API, that collects data from multiple datasources, such as SourceGraph GraphQL API, GitHub GraphQL API and GitHub REST API, and combines that to meaningful form, that can be analyzed. 
 
-**Glass** is going to be used to create a dataset for my thesis.
+**Glass** is going to be used to create a dataset for my thesis, and could be further developed to a tool, that can run inside GitHub Actions or GitLab CI/CD as a separate tool.
 
 ---
 
@@ -17,6 +17,7 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 - **Glass** is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`.
 
 - *WIP*: Go
+- Proposed: Node
 
 ---
 

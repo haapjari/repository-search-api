@@ -58,11 +58,11 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 }
 
 func (g *GoPlugin) GetRepositoryMetadata(count int) {
-	g.fetchRepositories(count) // Disabled for testing. // TODO: Enable
+	// g.fetchRepositories(count) // Disabled for testing. // TODO: Enable
 	// g.deleteDuplicateRepositories // TODO
-	g.enrichRepositoriesWithPrimaryData() // Disabled for testing. // TODO: Enable
 
-	//	g.enrichRepositoriesWithLibraryData("")
+	// g.enrichRepositoriesWithPrimaryData() // Disabled for testing. // TODO: Enable
+	g.enrichRepositoriesWithLibraryData("")
 }
 
 // TODO
@@ -83,24 +83,24 @@ func (g *GoPlugin) fetchRepositories(count int) {
 
 	// Parse Body to JSON
 	jsonReqBody, err := json.Marshal(rawReqBody)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	bytesReqBody := bytes.NewBuffer(jsonReqBody)
 
 	// Craft a request
 	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, bytesReqBody)
 	request.Header.Set("Content-Type", "application/json")
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	// Execute request
 	res, err := g.HttpClient.Do(request)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	defer res.Body.Close()
 
 	// Read all bytes from the response
 	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	// Parse bytes JSON.
 	var jsonSourceGraphResponse SourceGraphResponse
@@ -139,7 +139,7 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 
 			// Parse body to JSON.
 			jsonGithubRequestBody, err := json.Marshal(rawGithubRequestBody)
-			utils.LogErr(err)
+			utils.CheckErr(err)
 
 			bytesReqBody := bytes.NewBuffer(jsonGithubRequestBody)
 
@@ -153,13 +153,13 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 
 			// Execute a request with Oauth2 client.
 			githubResponse, err := g.GitHubClient.Do(githubRequest)
-			utils.LogErr(err)
+			utils.CheckErr(err)
 
 			defer githubResponse.Body.Close()
 
 			// Read the response bytes to a variable.
 			githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
-			utils.LogErr(err)
+			utils.CheckErr(err)
 
 			// Parse bytes to JSON.
 			var jsonGithubResponse GitHubResponse
@@ -169,7 +169,7 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 
 			// Search for existing model, which matches the id and copy the values to the "existingRepositoryStruct" variable.
 			if err := g.DatabaseClient.Where("id = ?", r.RepositoryData[i].Id).First(&existingRepositoryStruct).Error; err != nil {
-				utils.LogErr(err)
+				utils.CheckErr(err)
 			}
 
 			// Create new struct, with updated values.
@@ -215,39 +215,45 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 		"query": queryString,
 	}
 
-	// Parse Body to JSON
+	// Parse Body from Map to JSON
 	jsonRequestBody, err := json.Marshal(rawRequestBody)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
+	// Convert the Body from JSON to Bytes
 	requestBodyInBytes := bytes.NewBuffer(jsonRequestBody)
 
 	// Craft a Request
 	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, requestBodyInBytes)
 	request.Header.Set("Content-Type", "application/json")
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	// Execute Request
 	res, err := g.HttpClient.Do(request)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
+	// Close the Body, after surrounding function returns.
 	defer res.Body.Close()
 
-	// Read all bytes from the response
+	// Read all bytes from the response. (Empties the res.Body)
 	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
-	utils.LogErr(err)
+	utils.CheckErr(err)
 
 	// Parse JSON with "https://github.com/buger/jsonparser"
 	goModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
+	// Check, wether the project has inner go.mod files.
+	innerModfiles := false
+
+	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
 	if strings.Count(goModFile.String(), "replace") > 0 {
-		fmt.Println("Project has inner go.mod - files, which also needs to be parsed.")
+		innerModfiles = true
 	}
 
-	// requireCount := strings.Count(goModFile.String(), "require")
-
-	// fmt.Println(goModFile.String())
-	fmt.Println("---")
-	// fmt.Println(requireCount)
+	// actual parsing of the inner modfiles will happen here.
+	if innerModfiles {
+		// read the locations of the inner modfiles and construct queries from them.
+		// example URL: https://raw.githubusercontent.com/kubernetes/kubernetes/master/go.mod - will give the raw content of the file.
+	}
 
 	// WIP: Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
 
