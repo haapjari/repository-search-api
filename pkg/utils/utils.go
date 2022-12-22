@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os/exec"
+	"strings"
 
 	"github.com/haapjari/glass/pkg/models"
 )
@@ -14,6 +15,18 @@ func CheckErr(err error) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func RemoveCharFromString(str string, chr rune) string {
+	var builder strings.Builder
+
+	for _, ch := range str {
+		if ch != chr {
+			builder.WriteRune(ch)
+		}
+	}
+
+	return builder.String()
 }
 
 func RemoveElement(s []models.Repository, index int) []models.Repository {

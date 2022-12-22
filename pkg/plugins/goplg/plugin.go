@@ -249,11 +249,27 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 		innerModfiles = true
 	}
 
+	var innerModfileLocations string
+	var splittedModFile []string
+
 	// actual parsing of the inner modfiles will happen here.
 	if innerModfiles {
+		splittedModFile = strings.Split(goModFile.String(), "replace")
+		innerModfileLocations = splittedModFile[1]
+
+		// remove trailing '(' and ')' runes from the string
+		innerModfileLocations = utils.RemoveCharFromString(innerModfileLocations, '(')
+		innerModfileLocations = utils.RemoveCharFromString(innerModfileLocations, ')')
+
+		// remove trailing whitespace,
+		// TODO: Continue from Here
+		innerModfileLocations = strings.TrimSpace(innerModfileLocations)
+
 		// read the locations of the inner modfiles and construct queries from them.
 		// example URL: https://raw.githubusercontent.com/kubernetes/kubernetes/master/go.mod - will give the raw content of the file.
 	}
+
+	fmt.Println(innerModfileLocations)
 
 	// WIP: Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
 
