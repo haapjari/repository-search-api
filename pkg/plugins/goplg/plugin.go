@@ -249,27 +249,70 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 		innerModfiles = true
 	}
 
-	var innerModfileLocations string
-	var splittedModFile []string
+	var (
+		innerModFilesString string
+		innerModFilesSlice  []string
+	)
+
+	// start the actual parsing
 
 	// actual parsing of the inner modfiles will happen here.
 	if innerModfiles {
-		splittedModFile = strings.Split(goModFile.String(), "replace")
-		innerModfileLocations = splittedModFile[1]
+		innerModFilesSlice = strings.Split(goModFile.String(), "replace")
+		innerModFilesString = innerModFilesSlice[1]
 
 		// remove trailing '(' and ')' runes from the string
-		innerModfileLocations = utils.RemoveCharFromString(innerModfileLocations, '(')
-		innerModfileLocations = utils.RemoveCharFromString(innerModfileLocations, ')')
+		innerModFilesString = utils.RemoveCharFromString(innerModFilesString, '(')
+		innerModFilesString = utils.RemoveCharFromString(innerModFilesString, ')')
 
 		// remove trailing whitespace,
-		// TODO: Continue from Here
-		innerModfileLocations = strings.TrimSpace(innerModfileLocations)
+		innerModFilesString = strings.TrimSpace(innerModFilesString)
 
-		// read the locations of the inner modfiles and construct queries from them.
-		// example URL: https://raw.githubusercontent.com/kubernetes/kubernetes/master/go.mod - will give the raw content of the file.
+		// split the strings from newline characters
+		innerModFilesSlice = strings.Split(innerModFilesString, "\n")
+
+		// remove trailing whitespaces from the beginning and end of the elements in the string
+		for i, line := range innerModFilesSlice {
+			innerModFilesSlice[i] = strings.TrimSpace(line)
+		}
+
+		// remove characters until => occurence.
+		for i, line := range innerModFilesSlice {
+			str := strings.Index(line, "=>")
+			innerModFilesSlice[i] = line[str+2:]
+		}
+
+		// add the "https://raw.githubusercontent.com/kubernetes/kubernetes/master" prefix and
+		// "/go.mod" postfix to the string.
+		prefix := "https://raw.githubusercontent.com/kubernetes/kubernetes/master"
+		postfix := "go.mod"
+
+		for i, line := range innerModFilesSlice {
+			// removing the dot from the beginning of the file
+			line = strings.Replace(line, ".", "", 1)
+
+			// remove whitespace inbetween the string
+			line = strings.Replace(line, " ", "", -1)
+
+			// concat the prefix and postfix
+			line = prefix + line + "/" + postfix
+
+			// modify the original slice
+			innerModFilesSlice[i] = line
+		}
 	}
 
-	fmt.Println(innerModfileLocations)
+	// printing the locations of the inner modfiles
+	for _, line := range innerModFilesSlice {
+		fmt.Println(line)
+	}
+
+	// TODO:
+	// Discard the additional replaces on the inner modfiles, because they are just overlapping.
+	// start to build the actual parsing, parse the original modfile and inner modfiles and start to query
+	// github for the size of the projects.
+
+	fmt.Println("---")
 
 	// WIP: Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
 
