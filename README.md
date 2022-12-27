@@ -17,7 +17,7 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 - **Glass** is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`.
 
 - *WIP*: Go
-- Proposed: Node
+- Proposed: node
 
 ---
 
@@ -27,7 +27,7 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 
 - See `Makefile`
 - Requires: `go`, `postgresql`
-- `.env` -file
+- `.env` -file, you need to fill up these values: <!-- TODO: Theres multiple hardcoded values, give these examples to here.>
 
 ```
 POSTGRES_USER=
@@ -55,12 +55,8 @@ REPOSITORY_API_BASEURL=
 
 ## TODO
 
-- Continue working with Library Parsing.
-- Cyclic Dependencies / Explicit Imports -> Go
-- Latest Version
-- Activity (?)
-- Latest Release
-- Library Data
+- Calculating Code Lines
+- Library Parsing.
     - Library parsing is done with analyzing `go.mod` -files.
 - Dockerfile 
     - Unable to Create Post Request from inside the container, getting `x509: certificate signed by unknown authority` error.
@@ -130,10 +126,6 @@ query {
             latestRelease {
                 name
                 publishedAt
-            latestRelease {
-                name
-                publishedAt
-            }
             }         
         }
 }
@@ -161,7 +153,7 @@ query {
 
 Thresholds of these amounts will be calculated, thresholds will be inbeween 0-5, where 2.5 is at middle of the amounts.
 
-These values will be averaged in a single QM value. Correlation will be calculated ratio of library to original code lines, or ratio of sizes. Is there a correlation between bigger ratio and quality measure.
+These values will be averaged in a single `Quality Measure`. Correlation will be calculated ratio of library to original code lines, or ratio of sizes. Is there a correlation between bigger ratio and quality measure.
 
 #### Derivative Information
 
