@@ -447,11 +447,6 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 		}
 	}
 
-	// Loop and print the inner go.mod files of the analyzed project.
-	// for _, line := range innerModFiles {
-	// fmt.Println(line)
-	// }
-
 	var (
 		outerModFileString       string
 		outerModFileSlice        []string
@@ -460,29 +455,28 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 		// totalCodeLines           int
 	)
 
-	// TODO: Do the parsing in a loop.
+	//	parseLibrariesFromModFile(outerModFile.String(), &libraries)
 
 	// Count how many times the substring "require" occurs in the outer go.mod file, this
 	// gives me the number of how many times the file needs to be splitted in order to be
 	// correctly parsed.
 	requireCount := strings.Count(outerModFile.String(), "require")
 
+	// Splitting the outer go.mod file to slice, using "require" as a separator.
 	outerModFileSlice = strings.Split(outerModFile.String(), "require")
 
 	// Now we have count of "requireCount" amount of strings saved in a slice.
 	// We can discard the 0th element, because it doesn't contain the library
 	// metadata.
-	// fmt.Println(outerModFileSlice[1])
-	// fmt.Println(outerModFileSlice[2])
-
 	for i := 1; i <= requireCount; i++ {
-		// Splitting from the first "(" rune.
-		outerModFileParsingSlice = strings.Split(outerModFileSlice[1], "(")
+		// Taking the right side of the splitted string, and
+		// re-splitting from the first "(" rune.
+		outerModFileParsingSlice = strings.Split(outerModFileSlice[i], "(")
 
 		// Splitting from the first ")" rune.
-		outerModFileParsingSlice = strings.Split(outerModFileParsingSlice[1], ")")
+		outerModFileParsingSlice = strings.Split(outerModFileParsingSlice[i], ")")
 
-		// Saving the contents inside the first parenthesis of the outer go.mod file
+		// Saving the contents inside the parenthesis of the outer go.mod file
 		// to a separate string variable.
 		outerModFileString = outerModFileParsingSlice[0]
 
@@ -497,18 +491,32 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 			outerModFileParsingSlice[i] = strings.TrimSpace(line)
 		}
 
-		libraries = outerModFileParsingSlice
+		libraries = append(libraries, outerModFileParsingSlice...)
 	}
 
-	// TODO: Create a cache, that holds the code lines of analyzed libraries.
-	// TODO: Parse the library names of the outer modfile.
-	// TODO: Parse the library names of the inner modfiles.
-	// TODO: Implement functionality to calculate code lines of the libraries.
+	// if the element contains substring "=>", its inside a replace parenthesis, which means
+	// its not a library, but a location for inner go.mod file, and it will be discarded.
+	// Create a new slice to hold the elements we want to keep
+	filteredLibraries := make([]string, 0)
 
-	// loop and print though the values of outerModFileParsingSlice
+	// Iterate over a copy of the slice
+	for _, lib := range libraries {
+		if !strings.Contains(lib, "=>") {
+			filteredLibraries = append(filteredLibraries, lib)
+		}
+	}
+
+	// Update the original slice with the filtered slice.
+	libraries = filteredLibraries
+
+	// Printing
 	for _, lib := range libraries {
 		fmt.Println(lib)
 	}
 
-	// fmt.Println("Total Code Lines: ", totalCodeLines)
+	// TODO: Parse the library names of the inner modfiles.
+
+	// TODO: Create a cache, that holds the code lines of analyzed libraries.
+	// TODO: Implement functionality to calculate code lines of the libraries.
+
 }
