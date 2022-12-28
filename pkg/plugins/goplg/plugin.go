@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
+	"github.com/hhatto/gocloc"
 	JSONParser "github.com/tidwall/gjson"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -58,18 +62,117 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 }
 
 func (g *GoPlugin) GetRepositoryMetadata(count int) {
-	// g.fetchRepositories(count) // Disabled for testing. // TODO: Enable
+	// g.fetchRepositories(count)
 	// g.deleteDuplicateRepositories // TODO
+	// g.enrichRepositoriesWithPrimaryData()
 
-	// g.enrichRepositoriesWithPrimaryData() // Disabled for testing. // TODO: Enable
-	g.enrichRepositoriesWithLibraryData("")
+	g.calculateSizeOfPrimaryRepositories()
+
+	// g.enrichRepositoriesWithLibraryData("")
 }
 
-// TODO
-// func (g *GoPlugin) GetCommitMetadata() {
-// }
+// Enriches the metadata with "Original Codebase Size" variables.
+func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
+	// fetch all the repositories from the database.
+	repositories := g.getAllRepositories()
 
-// PRIVATE METHODS
+	// calculate the amount of repositories, and save it to variable.
+	len := len(repositories.RepositoryData)
+
+	// append the https:// and .git prefix and postfix the RepositoryUrl variables.
+	for i := 0; i < len; i++ {
+		repositories.RepositoryData[i].RepositoryUrl = "https://" + repositories.RepositoryData[i].RepositoryUrl + ".git"
+	}
+
+	// TODO: Run this in a loop.
+
+	var (
+		outputString string
+		errorString  string
+	)
+
+	outputString, errorString = runCommand("git", "clone", repositories.RepositoryData[0].RepositoryUrl)
+
+	fmt.Println(outputString)
+	fmt.Println(errorString)
+
+	lines := runGoCloc(repositories.RepositoryData[0].RepositoryName)
+
+	fmt.Println(lines)
+
+	// TODO: Update the database with the new data.
+
+	outputString, errorString = runCommand("rm", "-rf", repositories.RepositoryData[0].RepositoryName)
+
+	fmt.Println(outputString)
+	fmt.Println(errorString)
+}
+
+// Wrapper for "exec/os" command execution.
+// Copied from blog: https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
+func runCommand(name string, arg ...string) (string, string) {
+	cmd := exec.Command(name, arg...)
+
+	var stdout, stderr []byte
+	var errStdout, errStderr error
+
+	stdoutIn, _ := cmd.StdoutPipe()
+	stderrIn, _ := cmd.StderrPipe()
+
+	err := cmd.Start()
+	utils.CheckErr(err)
+
+	// WaitGroup ensures, cmd.Wait() is called, after we finish reading from stdin and stdout.
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		stdout, errStdout = copyAndCapture(os.Stdout, stdoutIn)
+		wg.Done()
+	}()
+
+	stderr, errStderr = copyAndCapture(os.Stderr, stderrIn)
+
+	wg.Wait()
+
+	err = cmd.Wait()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
+	}
+
+	if errStdout != nil || errStderr != nil {
+		log.Fatal("failed to capture stdout or stderr\n")
+	}
+
+	outStr, errStr := string(stdout), string(stderr)
+
+	return outStr, errStr
+}
+
+// Helper function for running commands with "os/exec".
+// Copied from blog: https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
+func copyAndCapture(w io.Writer, r io.Reader) ([]byte, error) {
+	var out []byte
+	buf := make([]byte, 1024, 1024)
+	for {
+		n, err := r.Read(buf[:])
+		if n > 0 {
+			d := buf[:n]
+			out = append(out, d...)
+			_, err := w.Write(d)
+			if err != nil {
+				return out, err
+			}
+		}
+		if err != nil {
+			// Read returns io.EOF at the end of file, which is not an error for us
+			if err == io.EOF {
+				err = nil
+			}
+			return out, err
+		}
+	}
+}
 
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
 // parses the repository location to the database table.
@@ -110,11 +213,29 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	g.writeSourceGraphResponseToDatabase(len(jsonSourceGraphResponse.Data.Search.Results.Repositories), jsonSourceGraphResponse.Data.Search.Results.Repositories)
 }
 
+// Calculates the lines of code using https://github.com/hhatto/gocloc
+// in the path provided and return the value.
+func runGoCloc(path string) int {
+	languages := gocloc.NewDefinedLanguages()
+	options := gocloc.NewClocOptions()
+
+	paths := []string{
+		path,
+	}
+
+	processor := gocloc.NewProcessor(languages, options)
+
+	result, err := processor.Analyze(paths)
+	utils.CheckErr(err)
+
+	return int(result.Total.Code)
+}
+
 // Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
 // repositories, and appends the database entries with Open Issue Count, Closed Issue Count,
 // Commit Count, Original Codebase Size, Repository Type, Primary Language, Stargazers Count,
 // Creation Date, License.
-func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
+func (g *GoPlugin) enrichWithMetadata() {
 	r := g.getAllRepositories()
 	c := len(r.RepositoryData)
 
@@ -180,7 +301,6 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 			newRepositoryStruct.OpenIssueCount = strconv.Itoa(jsonGithubResponse.Data.Repository.OpenIssues.TotalCount)
 			newRepositoryStruct.ClosedIssueCount = strconv.Itoa(jsonGithubResponse.Data.Repository.ClosedIssues.TotalCount)
 			newRepositoryStruct.CommitCount = strconv.Itoa(jsonGithubResponse.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
-			newRepositoryStruct.OriginalCodebaseSize = strconv.Itoa(jsonGithubResponse.Data.Repository.Languages.TotalSize)
 			newRepositoryStruct.RepositoryType = "primary"
 			newRepositoryStruct.PrimaryLanguage = jsonGithubResponse.Data.Repository.PrimaryLanguage.Name
 			newRepositoryStruct.CreationDate = jsonGithubResponse.Data.Repository.CreatedAt
@@ -205,7 +325,7 @@ func (g *GoPlugin) enrichRepositoriesWithPrimaryData() {
 }
 
 // TODO
-func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
+func (g *GoPlugin) enrichWithLibraryData(repositoryUrl string) {
 	// Query String
 	// TODO: Replace URL from queryString with repositoryUrl
 	queryString := "{repository(name: \"github.com/kubernetes/kubernetes\") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
@@ -239,27 +359,28 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 	utils.CheckErr(err)
 
 	// Parse JSON with "https://github.com/buger/jsonparser"
-	goModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
+	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
-	// Check, wether the project has inner go.mod files.
+	// TODO: Using flags is not the best way to do this, rethink this.
+	// Flag Variable, which keeps track wether the project has inner go.mod files.
 	innerModfiles := false
 
 	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
-	if strings.Count(goModFile.String(), "replace") > 0 {
+	if strings.Count(outerModFile.String(), "replace") > 0 {
 		innerModfiles = true
 	}
 
+	// Parsing of the inner modfiles.
+
 	var (
 		innerModFilesString string
-		innerModFilesSlice  []string
+		innerModFiles       []string
 	)
 
-	// start the actual parsing
-
-	// actual parsing of the inner modfiles will happen here.
+	// If the project has inner modfiles, parse the locations to the variable innerModFilesSlice.
 	if innerModfiles {
-		innerModFilesSlice = strings.Split(goModFile.String(), "replace")
-		innerModFilesString = innerModFilesSlice[1]
+		innerModFiles = strings.Split(outerModFile.String(), "replace")
+		innerModFilesString = innerModFiles[1]
 
 		// remove trailing '(' and ')' runes from the string
 		innerModFilesString = utils.RemoveCharFromString(innerModFilesString, '(')
@@ -269,25 +390,26 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 		innerModFilesString = strings.TrimSpace(innerModFilesString)
 
 		// split the strings from newline characters
-		innerModFilesSlice = strings.Split(innerModFilesString, "\n")
+		innerModFiles = strings.Split(innerModFilesString, "\n")
 
 		// remove trailing whitespaces from the beginning and end of the elements in the string
-		for i, line := range innerModFilesSlice {
-			innerModFilesSlice[i] = strings.TrimSpace(line)
+		for i, line := range innerModFiles {
+			innerModFiles[i] = strings.TrimSpace(line)
 		}
 
 		// remove characters until => occurence.
-		for i, line := range innerModFilesSlice {
+		for i, line := range innerModFiles {
 			str := strings.Index(line, "=>")
-			innerModFilesSlice[i] = line[str+2:]
+			innerModFiles[i] = line[str+2:]
 		}
 
+		// TODO: Refactor prefix and postfix, with actual repository names.
 		// add the "https://raw.githubusercontent.com/kubernetes/kubernetes/master" prefix and
 		// "/go.mod" postfix to the string.
 		prefix := "https://raw.githubusercontent.com/kubernetes/kubernetes/master"
 		postfix := "go.mod"
 
-		for i, line := range innerModFilesSlice {
+		for i, line := range innerModFiles {
 			// removing the dot from the beginning of the file
 			line = strings.Replace(line, ".", "", 1)
 
@@ -298,29 +420,15 @@ func (g *GoPlugin) enrichRepositoriesWithLibraryData(repositoryUrl string) {
 			line = prefix + line + "/" + postfix
 
 			// modify the original slice
-			innerModFilesSlice[i] = line
+			innerModFiles[i] = line
 		}
 	}
 
-	// printing the locations of the inner modfiles
-	for _, line := range innerModFilesSlice {
-		fmt.Println(line)
-	}
+	// TODO: Create variable, that holds the amount of code lines of a repository.
+	// TODO: Create a cache, that holds the code lines of analyzed libraries.
+	// TODO: Parse the library names of the outer modfile.
+	// TODO: Parse the library names of the inner modfiles.
+	// TODO: Implement functionality to calculate code lines of the libraries.
 
-	// TODO:
-	// Discard the additional replaces on the inner modfiles, because they are just overlapping.
-	// start to build the actual parsing, parse the original modfile and inner modfiles and start to query
-	// github for the size of the projects.
-
-	fmt.Println("---")
-
-	// WIP: Parse the content of the go.mod file -> struct in order to be able to manipulate the data.
-
-	// Parsing:
-	// Count, how many times "require" occurs in a file.
-
-	// Read the go.mod -content to a variable.
-	// Parse out the libraries from the go.mod to a struct in order to be able to manipulate the data.
-	// Generate "repository" entries from the libraries, fill in their data (name, url, open issues, closed issues, repository type, priamry language, creation date, stargazer count, license info) basicly everything except library codebase size, thats scoped out.
-	// Sum the "original_codebase_size"	's up and PUT that into the original entry of the repository.
+	fmt.Println(outerModFile.String())
 }
