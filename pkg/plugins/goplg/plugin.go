@@ -386,11 +386,11 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
 	// Flag variable, which keeps track wether the project has inner go.mod files.
-	innerModfiles := false
+	isThereInnerModFiles := false
 
 	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
 	if strings.Count(outerModFile.String(), "replace") > 0 {
-		innerModfiles = true
+		isThereInnerModFiles = true
 	}
 
 	// Parsing of the inner modfiles.
@@ -401,7 +401,7 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	)
 
 	// If the project has inner modfiles, parse the locations to the variable innerModFilesSlice.
-	if innerModfiles {
+	if isThereInnerModFiles {
 		innerModFiles = strings.Split(outerModFile.String(), "replace")
 		innerModFilesString = innerModFiles[1]
 
@@ -452,6 +452,7 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 		// totalCodeLines           int
 	)
 
+	// Libraries are saved in a slice of "libraries"
 	libraries = parseLibrariesFromModFile(outerModFile.String())
 
 	// Printing
@@ -459,10 +460,51 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 		fmt.Println(lib)
 	}
 
+	// TODO: This will happen in a loop.
+	// Perform a GET request, to get the content of the inner modfile.
+
+	// We can discard the replace contents of the inner modfiles, because they already
+	// taken in account.
+
+	modFileContent := performGetRequest(innerModFiles[0])
+
+	modFileContentSlice := parseLibrariesFromModFile(modFileContent)
+
+	fmt.Println("---")
+
+	// TODO: For some reason the parseLibrariesFromModFile is not working properly.
+	// It's not taking in account the second parenthesis in modFileContent, why not (?)
+
+	// Printing
+	for _, lib := range modFileContentSlice {
+		fmt.Println(lib)
+	}
+
+	fmt.Println("---")
+
+	fmt.Println(modFileContent)
+
+	// libraries = append(libraries, parseLibrariesFromModFile(modFileContent)...)
+
 	// TODO: Parse the library names of the inner modfiles.
 	// TODO: Create a cache, that holds the code lines of analyzed libraries.
 	// TODO: Implement functionality to calculate code lines of the libraries.
+	// TODO: Delete duplicates from the libraries slice.
+}
 
+// Performs a GET request to the specified URL.
+func performGetRequest(url string) string {
+	// Make a GET request to the specified URL
+	resp, err := http.Get(url)
+	utils.CheckErr(err)
+
+	defer resp.Body.Close()
+
+	// Read the response body into a variable
+	body, err := ioutil.ReadAll(resp.Body)
+	utils.CheckErr(err)
+
+	return (string(body))
 }
 
 // Parses the library names from the go.mod file and save them to the libraries slice.
