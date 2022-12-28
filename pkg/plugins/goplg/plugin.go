@@ -66,9 +66,9 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 	// g.deleteDuplicateRepositories // TODO
 	// g.enrichRepositoriesWithPrimaryData()
 
-	g.calculateSizeOfPrimaryRepositories()
+	// g.calculateSizeOfPrimaryRepositories()
 
-	// g.enrichRepositoriesWithLibraryData("")
+	g.enrichWithLibraryData("")
 }
 
 // Enriches the metadata with "Original Codebase Size" variables.
@@ -94,13 +94,16 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 		// If the OriginalCodebaseSize variable is empty, analyze the repository.
 		// Otherwise skip the repository, in order to avoid double analysis.
 		if repositories.RepositoryData[i].OriginalCodebaseSize == "" {
+			// Save the repository url and name to variables, for easier access and less repetition.
 			url := repositories.RepositoryData[i].RepositoryUrl
 			name := repositories.RepositoryData[i].RepositoryName
 
 			// Clone the repository.
 			output, err = runCommand("git", "clone", url)
 			fmt.Println(output)
-			fmt.Println(err)
+			if err != "" {
+				fmt.Println(err)
+			}
 
 			// Run "gocloc" and calculate the amount of lines.
 			lines := runGoCloc(name)
@@ -122,7 +125,9 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 			// Delete the repository.
 			output, err = runCommand("rm", "-rf", name)
 			fmt.Println(output)
-			fmt.Println(err)
+			if err != "" {
+				fmt.Println(err)
+			}
 		}
 	}
 }
@@ -344,7 +349,7 @@ func (g *GoPlugin) enrichWithMetadata() {
 }
 
 // TODO
-func (g *GoPlugin) enrichWithLibraryData(repositoryUrl string) {
+func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// Query String
 	// TODO: Replace URL from queryString with repositoryUrl
 	queryString := "{repository(name: \"github.com/kubernetes/kubernetes\") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
@@ -380,8 +385,7 @@ func (g *GoPlugin) enrichWithLibraryData(repositoryUrl string) {
 	// Parse JSON with "https://github.com/buger/jsonparser"
 	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
-	// TODO: Using flags is not the best way to do this, rethink this.
-	// Flag Variable, which keeps track wether the project has inner go.mod files.
+	// Flag variable, which keeps track wether the project has inner go.mod files.
 	innerModfiles := false
 
 	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
@@ -443,11 +447,68 @@ func (g *GoPlugin) enrichWithLibraryData(repositoryUrl string) {
 		}
 	}
 
-	// TODO: Create variable, that holds the amount of code lines of a repository.
+	// Loop and print the inner go.mod files of the analyzed project.
+	// for _, line := range innerModFiles {
+	// fmt.Println(line)
+	// }
+
+	var (
+		outerModFileString       string
+		outerModFileSlice        []string
+		outerModFileParsingSlice []string
+		libraries                []string
+		// totalCodeLines           int
+	)
+
+	// TODO: Do the parsing in a loop.
+
+	// Count how many times the substring "require" occurs in the outer go.mod file, this
+	// gives me the number of how many times the file needs to be splitted in order to be
+	// correctly parsed.
+	requireCount := strings.Count(outerModFile.String(), "require")
+
+	outerModFileSlice = strings.Split(outerModFile.String(), "require")
+
+	// Now we have count of "requireCount" amount of strings saved in a slice.
+	// We can discard the 0th element, because it doesn't contain the library
+	// metadata.
+	// fmt.Println(outerModFileSlice[1])
+	// fmt.Println(outerModFileSlice[2])
+
+	for i := 1; i <= requireCount; i++ {
+		// Splitting from the first "(" rune.
+		outerModFileParsingSlice = strings.Split(outerModFileSlice[1], "(")
+
+		// Splitting from the first ")" rune.
+		outerModFileParsingSlice = strings.Split(outerModFileParsingSlice[1], ")")
+
+		// Saving the contents inside the first parenthesis of the outer go.mod file
+		// to a separate string variable.
+		outerModFileString = outerModFileParsingSlice[0]
+
+		// After splitting, there are trailing whitespace, so trimming that out.
+		outerModFileString = strings.TrimSpace(outerModFileString)
+
+		// Split the string from newline characters.
+		outerModFileParsingSlice = strings.Split(outerModFileString, "\n")
+
+		// Remove trailing whitespaces from the beginning and end of the elements in the slice.
+		for i, line := range outerModFileParsingSlice {
+			outerModFileParsingSlice[i] = strings.TrimSpace(line)
+		}
+
+		libraries = outerModFileParsingSlice
+	}
+
 	// TODO: Create a cache, that holds the code lines of analyzed libraries.
 	// TODO: Parse the library names of the outer modfile.
 	// TODO: Parse the library names of the inner modfiles.
 	// TODO: Implement functionality to calculate code lines of the libraries.
 
-	fmt.Println(outerModFile.String())
+	// loop and print though the values of outerModFileParsingSlice
+	for _, lib := range libraries {
+		fmt.Println(lib)
+	}
+
+	// fmt.Println("Total Code Lines: ", totalCodeLines)
 }
