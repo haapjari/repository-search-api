@@ -448,22 +448,39 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	}
 
 	var (
+		libraries []string
+		// totalCodeLines           int
+	)
+
+	libraries = parseLibrariesFromModFile(outerModFile.String())
+
+	// Printing
+	for _, lib := range libraries {
+		fmt.Println(lib)
+	}
+
+	// TODO: Parse the library names of the inner modfiles.
+	// TODO: Create a cache, that holds the code lines of analyzed libraries.
+	// TODO: Implement functionality to calculate code lines of the libraries.
+
+}
+
+// Parses the library names from the go.mod file and save them to the libraries slice.
+func parseLibrariesFromModFile(modFile string) []string {
+	var (
 		outerModFileString       string
 		outerModFileSlice        []string
 		outerModFileParsingSlice []string
 		libraries                []string
-		// totalCodeLines           int
 	)
-
-	//	parseLibrariesFromModFile(outerModFile.String(), &libraries)
 
 	// Count how many times the substring "require" occurs in the outer go.mod file, this
 	// gives me the number of how many times the file needs to be splitted in order to be
 	// correctly parsed.
-	requireCount := strings.Count(outerModFile.String(), "require")
+	requireCount := strings.Count(modFile, "require")
 
 	// Splitting the outer go.mod file to slice, using "require" as a separator.
-	outerModFileSlice = strings.Split(outerModFile.String(), "require")
+	outerModFileSlice = strings.Split(modFile, "require")
 
 	// Now we have count of "requireCount" amount of strings saved in a slice.
 	// We can discard the 0th element, because it doesn't contain the library
@@ -509,14 +526,5 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// Update the original slice with the filtered slice.
 	libraries = filteredLibraries
 
-	// Printing
-	for _, lib := range libraries {
-		fmt.Println(lib)
-	}
-
-	// TODO: Parse the library names of the inner modfiles.
-
-	// TODO: Create a cache, that holds the code lines of analyzed libraries.
-	// TODO: Implement functionality to calculate code lines of the libraries.
-
+	return libraries
 }
