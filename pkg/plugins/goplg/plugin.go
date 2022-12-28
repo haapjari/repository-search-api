@@ -91,17 +91,30 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 		errorString  string
 	)
 
+	// Clone the repository.
 	outputString, errorString = runCommand("git", "clone", repositories.RepositoryData[0].RepositoryUrl)
 
 	fmt.Println(outputString)
 	fmt.Println(errorString)
 
+	// Run "gocloc" and calculate the amount of lines.
 	lines := runGoCloc(repositories.RepositoryData[0].RepositoryName)
 
-	fmt.Println(lines)
+	// Copy the repository struct to a new variable.
+	var repositoryStruct models.Repository
 
-	// TODO: Update the database with the new data.
+	// Find matching repository from the database.
+	if err := g.DatabaseClient.Where("repository_name = ?", repositories.RepositoryData[0].RepositoryName).First(&repositoryStruct).Error; err != nil {
+		utils.CheckErr(err)
+	}
 
+	// Update the OriginalCodebaseSize variable, with calculated value.
+	repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
+
+	// Update the database.
+	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
+
+	// Delete the repository.
 	outputString, errorString = runCommand("rm", "-rf", repositories.RepositoryData[0].RepositoryName)
 
 	fmt.Println(outputString)
