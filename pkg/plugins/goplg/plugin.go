@@ -84,41 +84,47 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 		repositories.RepositoryData[i].RepositoryUrl = "https://" + repositories.RepositoryData[i].RepositoryUrl + ".git"
 	}
 
-	// TODO: Run this in a loop.
-
 	var (
-		outputString string
-		errorString  string
+		output string
+		err    string
 	)
 
-	// Clone the repository.
-	outputString, errorString = runCommand("git", "clone", repositories.RepositoryData[0].RepositoryUrl)
+	// Calculate the amount of code lines for each repository.
+	for i := 0; i < len; i++ {
+		// If the OriginalCodebaseSize variable is empty, analyze the repository.
+		// Otherwise skip the repository, in order to avoid double analysis.
+		if repositories.RepositoryData[i].OriginalCodebaseSize == "" {
+			url := repositories.RepositoryData[i].RepositoryUrl
+			name := repositories.RepositoryData[i].RepositoryName
 
-	fmt.Println(outputString)
-	fmt.Println(errorString)
+			// Clone the repository.
+			output, err = runCommand("git", "clone", url)
+			fmt.Println(output)
+			fmt.Println(err)
 
-	// Run "gocloc" and calculate the amount of lines.
-	lines := runGoCloc(repositories.RepositoryData[0].RepositoryName)
+			// Run "gocloc" and calculate the amount of lines.
+			lines := runGoCloc(name)
 
-	// Copy the repository struct to a new variable.
-	var repositoryStruct models.Repository
+			// Copy the repository struct to a new variable.
+			var repositoryStruct models.Repository
 
-	// Find matching repository from the database.
-	if err := g.DatabaseClient.Where("repository_name = ?", repositories.RepositoryData[0].RepositoryName).First(&repositoryStruct).Error; err != nil {
-		utils.CheckErr(err)
+			// Find matching repository from the database.
+			if err := g.DatabaseClient.Where("repository_name = ?", name).First(&repositoryStruct).Error; err != nil {
+				utils.CheckErr(err)
+			}
+
+			// Update the OriginalCodebaseSize variable, with calculated value.
+			repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
+
+			// Update the database.
+			g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
+
+			// Delete the repository.
+			output, err = runCommand("rm", "-rf", name)
+			fmt.Println(output)
+			fmt.Println(err)
+		}
 	}
-
-	// Update the OriginalCodebaseSize variable, with calculated value.
-	repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
-
-	// Update the database.
-	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
-
-	// Delete the repository.
-	outputString, errorString = runCommand("rm", "-rf", repositories.RepositoryData[0].RepositoryName)
-
-	fmt.Println(outputString)
-	fmt.Println(errorString)
 }
 
 // Wrapper for "exec/os" command execution.
