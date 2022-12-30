@@ -2,6 +2,7 @@ package goplg
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -194,4 +195,11 @@ func checkIfSliceContainsAllElements(sliceA []string, sliceB []string) bool {
 	}
 
 	return true
+}
+
+// Print a slice of strings.
+func printStringSlice(slice []string) {
+	for _, elem := range slice {
+		fmt.Println(elem)
+	}
 }

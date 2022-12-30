@@ -260,6 +260,7 @@ func (g *GoPlugin) enrichWithMetadata() {
 }
 
 // TODO
+// Enrich the values in the repositories -table with the codebase sizes of the libraries, and append them to the database.
 func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// Query String
 	// TODO: Replace URL from queryString with repositoryUrl
@@ -296,8 +297,6 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// Parse JSON with "https://github.com/buger/jsonparser"
 	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
-	// Parsing of the inner modfiles.
-
 	var (
 		libraries     []string
 		innerModFiles []string
@@ -305,37 +304,28 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	)
 
 	// TODO: Parse the real name here.
+	// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
 	if checkInnerModFiles(outerModFile.String()) {
 		innerModFiles = parseInnerModFiles(outerModFile.String(), "kubernetes/kubernetes")
 	}
 
-	// Parsing libraries from go.mod file.
-
-	// Libraries are saved in a slice of "libraries"
+	// Parse the name of libraries from modfile to a slice.
 	libraries = parseLibrariesFromModFile(outerModFile.String())
 
-	fmt.Println("---")
-
-	// // Parsing the outer modfile ends here.
-
 	// TODO: This will happen in a loop.
-	// Perform a GET request, to get the content of the inner modfile.
 
-	// We can discard the replace contents of the inner modfiles, because they already
-	// taken in account.
+	// Parse the library names of the inner go.mod files, and append them to the libraries slice.
+	for i := 0; i < len(innerModFiles); i++ {
+		// Perform a GET request, to get the content of the inner modfile.
+		modFileContent := performGetRequest(innerModFiles[i])
 
-	modFileContent := performGetRequest(innerModFiles[0])
-
-	// Append the libraries from the inner modfile to the libraries slice.
-	libraries = append(libraries, parseLibrariesFromModFile(modFileContent)...)
-
-	// Printing
-	// TODO: Remove
-	for _, lib := range libraries {
-		fmt.Println(lib)
+		// Append the libraries from the inner modfile to the libraries slice.
+		libraries = append(libraries, parseLibrariesFromModFile(modFileContent)...)
 	}
 
-	// TODO: Parse the library names of the inner modfiles.
+	// TODO: Remove
+	printStringSlice(libraries)
+
 	// TODO: Create a cache, that holds the code lines of analyzed libraries.
 	// TODO: Implement functionality to calculate code lines of the libraries.
 	// TODO: Delete duplicates from the libraries slice.
