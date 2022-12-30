@@ -5,12 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,7 +15,6 @@ import (
 
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
-	"github.com/hhatto/gocloc"
 	JSONParser "github.com/tidwall/gjson"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -132,72 +128,6 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 	}
 }
 
-// Wrapper for "exec/os" command execution.
-// Copied from blog: https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-func runCommand(name string, arg ...string) (string, string) {
-	cmd := exec.Command(name, arg...)
-
-	var stdout, stderr []byte
-	var errStdout, errStderr error
-
-	stdoutIn, _ := cmd.StdoutPipe()
-	stderrIn, _ := cmd.StderrPipe()
-
-	err := cmd.Start()
-	utils.CheckErr(err)
-
-	// WaitGroup ensures, cmd.Wait() is called, after we finish reading from stdin and stdout.
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		stdout, errStdout = copyAndCapture(os.Stdout, stdoutIn)
-		wg.Done()
-	}()
-
-	stderr, errStderr = copyAndCapture(os.Stderr, stderrIn)
-
-	wg.Wait()
-
-	err = cmd.Wait()
-	if err != nil {
-		log.Fatalf("cmd.Run() failed with %s\n", err)
-	}
-
-	if errStdout != nil || errStderr != nil {
-		log.Fatal("failed to capture stdout or stderr\n")
-	}
-
-	outStr, errStr := string(stdout), string(stderr)
-
-	return outStr, errStr
-}
-
-// Helper function for running commands with "os/exec".
-// Copied from blog: https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-func copyAndCapture(w io.Writer, r io.Reader) ([]byte, error) {
-	var out []byte
-	buf := make([]byte, 1024, 1024)
-	for {
-		n, err := r.Read(buf[:])
-		if n > 0 {
-			d := buf[:n]
-			out = append(out, d...)
-			_, err := w.Write(d)
-			if err != nil {
-				return out, err
-			}
-		}
-		if err != nil {
-			// Read returns io.EOF at the end of file, which is not an error for us
-			if err == io.EOF {
-				err = nil
-			}
-			return out, err
-		}
-	}
-}
-
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
 // parses the repository location to the database table.
 func (g *GoPlugin) fetchRepositories(count int) {
@@ -235,24 +165,6 @@ func (g *GoPlugin) fetchRepositories(count int) {
 
 	// Write the response to Database.
 	g.writeSourceGraphResponseToDatabase(len(jsonSourceGraphResponse.Data.Search.Results.Repositories), jsonSourceGraphResponse.Data.Search.Results.Repositories)
-}
-
-// Calculates the lines of code using https://github.com/hhatto/gocloc
-// in the path provided and return the value.
-func runGoCloc(path string) int {
-	languages := gocloc.NewDefinedLanguages()
-	options := gocloc.NewClocOptions()
-
-	paths := []string{
-		path,
-	}
-
-	processor := gocloc.NewProcessor(languages, options)
-
-	result, err := processor.Analyze(paths)
-	utils.CheckErr(err)
-
-	return int(result.Total.Code)
 }
 
 // Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
@@ -385,80 +297,40 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// Parse JSON with "https://github.com/buger/jsonparser"
 	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
-	// Flag variable, which keeps track wether the project has inner go.mod files.
-	isThereInnerModFiles := false
-
-	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
-	if strings.Count(outerModFile.String(), "replace") > 0 {
-		isThereInnerModFiles = true
-	}
-
 	// Parsing of the inner modfiles.
 
 	var (
-		innerModFilesString string
-		innerModFiles       []string
-	)
-
-	// If the project has inner modfiles, parse the locations to the variable innerModFilesSlice.
-	if isThereInnerModFiles {
-		innerModFiles = strings.Split(outerModFile.String(), "replace")
-		innerModFilesString = innerModFiles[1]
-
-		// remove trailing '(' and ')' runes from the string
-		innerModFilesString = utils.RemoveCharFromString(innerModFilesString, '(')
-		innerModFilesString = utils.RemoveCharFromString(innerModFilesString, ')')
-
-		// remove trailing whitespace,
-		innerModFilesString = strings.TrimSpace(innerModFilesString)
-
-		// split the strings from newline characters
-		innerModFiles = strings.Split(innerModFilesString, "\n")
-
-		// remove trailing whitespaces from the beginning and end of the elements in the string
-		for i, line := range innerModFiles {
-			innerModFiles[i] = strings.TrimSpace(line)
-		}
-
-		// remove characters until => occurence.
-		for i, line := range innerModFiles {
-			str := strings.Index(line, "=>")
-			innerModFiles[i] = line[str+2:]
-		}
-
-		// TODO: Refactor prefix and postfix, with actual repository names.
-		// add the "https://raw.githubusercontent.com/kubernetes/kubernetes/master" prefix and
-		// "/go.mod" postfix to the string.
-		prefix := "https://raw.githubusercontent.com/kubernetes/kubernetes/master"
-		postfix := "go.mod"
-
-		for i, line := range innerModFiles {
-			// removing the dot from the beginning of the file
-			line = strings.Replace(line, ".", "", 1)
-
-			// remove whitespace inbetween the string
-			line = strings.Replace(line, " ", "", -1)
-
-			// concat the prefix and postfix
-			line = prefix + line + "/" + postfix
-
-			// modify the original slice
-			innerModFiles[i] = line
-		}
-	}
-
-	var (
-		libraries []string
+		libraries     []string
+		innerModFiles []string
 		// totalCodeLines           int
 	)
+
+	if checkInnerModFiles(outerModFile.String()) {
+		innerModFiles = parseInnerModFiles(outerModFile.String())
+	}
+
+	// Print the inner modfiles.
+	// TODO: Remove
+	for _, innerModFile := range innerModFiles {
+		fmt.Println(innerModFile)
+	}
+
+	fmt.Println("---")
+
+	// Parsing libraries from go.mod file.
 
 	// Libraries are saved in a slice of "libraries"
 	libraries = parseLibrariesFromModFile(outerModFile.String())
 
 	// Printing
+	// TODO: Remove
 	for _, lib := range libraries {
 		fmt.Println(lib)
 	}
+
+	fmt.Println("---")
+
+	// // Parsing the outer modfile ends here.
 
 	// TODO: This will happen in a loop.
 	// Perform a GET request, to get the content of the inner modfile.
@@ -466,23 +338,21 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// We can discard the replace contents of the inner modfiles, because they already
 	// taken in account.
 
-	modFileContent := performGetRequest(innerModFiles[0])
+	// modFileContent := performGetRequest(innerModFiles[0])
 
-	modFileContentSlice := parseLibrariesFromModFile(modFileContent)
+	// modFileContentSlice := parseLibrariesFromModFile(modFileContent)
 
-	fmt.Println("---")
+	// fmt.Println("---")
 
 	// TODO: For some reason the parseLibrariesFromModFile is not working properly.
 	// It's not taking in account the second parenthesis in modFileContent, why not (?)
 
 	// Printing
-	for _, lib := range modFileContentSlice {
-		fmt.Println(lib)
-	}
+	//	for _, lib := range modFileContentSlice {
+	//fmt.Println(lib)
+	//}
 
-	fmt.Println("---")
-
-	fmt.Println(modFileContent)
+	//fmt.Println(modFileContent)
 
 	// libraries = append(libraries, parseLibrariesFromModFile(modFileContent)...)
 
@@ -492,81 +362,67 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// TODO: Delete duplicates from the libraries slice.
 }
 
-// Performs a GET request to the specified URL.
-func performGetRequest(url string) string {
-	// Make a GET request to the specified URL
-	resp, err := http.Get(url)
-	utils.CheckErr(err)
+func parseInnerModFiles(str string) []string {
 
-	defer resp.Body.Close()
-
-	// Read the response body into a variable
-	body, err := ioutil.ReadAll(resp.Body)
-	utils.CheckErr(err)
-
-	return (string(body))
-}
-
-// Parses the library names from the go.mod file and save them to the libraries slice.
-func parseLibrariesFromModFile(modFile string) []string {
 	var (
-		outerModFileString       string
-		outerModFileSlice        []string
-		outerModFileParsingSlice []string
-		libraries                []string
+		innerModFilesString string
+		innerModFiles       []string
 	)
 
-	// Count how many times the substring "require" occurs in the outer go.mod file, this
-	// gives me the number of how many times the file needs to be splitted in order to be
-	// correctly parsed.
-	requireCount := strings.Count(modFile, "require")
+	// If the project has inner modfiles, parse the locations to the variable innerModFilesSlice.
+	innerModFiles = strings.Split(str, "replace")
+	innerModFilesString = innerModFiles[1]
 
-	// Splitting the outer go.mod file to slice, using "require" as a separator.
-	outerModFileSlice = strings.Split(modFile, "require")
+	// remove trailing '(' and ')' runes from the string
+	innerModFilesString = utils.RemoveCharFromString(innerModFilesString, '(')
+	innerModFilesString = utils.RemoveCharFromString(innerModFilesString, ')')
 
-	// Now we have count of "requireCount" amount of strings saved in a slice.
-	// We can discard the 0th element, because it doesn't contain the library
-	// metadata.
-	for i := 1; i <= requireCount; i++ {
-		// Taking the right side of the splitted string, and
-		// re-splitting from the first "(" rune.
-		outerModFileParsingSlice = strings.Split(outerModFileSlice[i], "(")
+	// remove trailing whitespace,
+	innerModFilesString = strings.TrimSpace(innerModFilesString)
 
-		// Splitting from the first ")" rune.
-		outerModFileParsingSlice = strings.Split(outerModFileParsingSlice[i], ")")
+	// split the strings from newline characters
+	innerModFiles = strings.Split(innerModFilesString, "\n")
 
-		// Saving the contents inside the parenthesis of the outer go.mod file
-		// to a separate string variable.
-		outerModFileString = outerModFileParsingSlice[0]
-
-		// After splitting, there are trailing whitespace, so trimming that out.
-		outerModFileString = strings.TrimSpace(outerModFileString)
-
-		// Split the string from newline characters.
-		outerModFileParsingSlice = strings.Split(outerModFileString, "\n")
-
-		// Remove trailing whitespaces from the beginning and end of the elements in the slice.
-		for i, line := range outerModFileParsingSlice {
-			outerModFileParsingSlice[i] = strings.TrimSpace(line)
-		}
-
-		libraries = append(libraries, outerModFileParsingSlice...)
+	// remove trailing whitespaces from the beginning and end of the elements in the string
+	for i, line := range innerModFiles {
+		innerModFiles[i] = strings.TrimSpace(line)
 	}
 
-	// if the element contains substring "=>", its inside a replace parenthesis, which means
-	// its not a library, but a location for inner go.mod file, and it will be discarded.
-	// Create a new slice to hold the elements we want to keep
-	filteredLibraries := make([]string, 0)
-
-	// Iterate over a copy of the slice
-	for _, lib := range libraries {
-		if !strings.Contains(lib, "=>") {
-			filteredLibraries = append(filteredLibraries, lib)
-		}
+	// remove characters until => occurence.
+	for i, line := range innerModFiles {
+		str := strings.Index(line, "=>")
+		innerModFiles[i] = line[str+2:]
 	}
 
-	// Update the original slice with the filtered slice.
-	libraries = filteredLibraries
+	// TODO: Refactor prefix and postfix, with actual repository names.
+	// add the "https://raw.githubusercontent.com/kubernetes/kubernetes/master" prefix and
+	// "/go.mod" postfix to the string.
+	prefix := "https://raw.githubusercontent.com/kubernetes/kubernetes/master"
+	postfix := "go.mod"
 
-	return libraries
+	for i, line := range innerModFiles {
+		// removing the dot from the beginning of the file
+		line = strings.Replace(line, ".", "", 1)
+
+		// remove whitespace inbetween the string
+		line = strings.Replace(line, " ", "", -1)
+
+		// concat the prefix and postfix
+		line = prefix + line + "/" + postfix
+
+		// modify the original slice
+		innerModFiles[i] = line
+	}
+
+	return innerModFiles
+}
+
+// Check if the project contains inner modfiles.
+func checkInnerModFiles(str string) bool {
+	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
+	if strings.Count(str, "replace") > 0 {
+		return true
+	}
+
+	return false
 }

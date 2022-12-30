@@ -77,3 +77,55 @@ func (p *Parser) ParseSourceGraphResponse(data string) (map[string]interface{}, 
 
 	return resultsMap, nil
 }
+
+// parseLibrariesFromModFile parses the library names from the given go.mod file and returns them as a slice of strings.
+func parseLibrariesFromModFile(modFile string) []string {
+	// Split the mod file into lines
+	lines := strings.Split(modFile, "\n")
+
+	// Initialize a slice to hold the require statements
+	var requires []string
+
+	// Flag to track whether we are inside a require block
+	inRequireBlock := false
+
+	// Iterate over the lines of the mod file
+	for _, line := range lines {
+		// If the line contains "require (", set the flag to true
+		if strings.Contains(line, "require (") {
+			inRequireBlock = true
+			continue
+		}
+
+		// If the line contains ")", set the flag to false
+		if strings.Contains(line, ")") {
+			inRequireBlock = false
+			continue
+		}
+
+		// If we are inside a require block, add the line to the slice of require statements
+		if inRequireBlock {
+			requires = append(requires, strings.TrimSpace(line))
+		}
+	}
+
+	// Remove empty strings from the slice of require statements
+	filteredRequires := filterEmpty(requires)
+
+	// Initialize a buffer slice to hold the filtered libraries
+	buf := make([]string, len(filteredRequires))
+	bufIdx := 0 // Current index of the buffer slice
+
+	// Iterate over the filtered require statements
+	for _, lib := range filteredRequires {
+		// If the statement does not contain "=>", it is a library and should be added to the buffer slice
+		if !strings.Contains(lib, "=>") {
+			parts := strings.Split(lib, " // ")
+			buf[bufIdx] = parts[0]
+			bufIdx++
+		}
+	}
+
+	// Trim the buffer slice to the length of the filtered libraries
+	return buf[:bufIdx]
+}
