@@ -319,6 +319,7 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// append libraries from inner go.mod files to the libraries slice.
 	if checkInnerModFiles(outerModFileString) {
 		// Parse the library names of the inner go.mod files, and append them to the libraries slice.
+		// TODO: Think, could this be splitted into goroutines (?)
 		for i := 0; i < len(innerModFiles); i++ {
 			// Perform a GET request, to get the content of the inner modfile.
 			// Append the libraries from the inner modfile to the libraries slice.
