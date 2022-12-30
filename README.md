@@ -55,6 +55,7 @@ REPOSITORY_API_BASEURL=
 
 ## TODO
 
+- Priority is now to get the Dockerfile working.
 - Calculating Code Lines of a Library.
 - Dockerfile 
     - Unable to Create Post Request from inside the container, getting `x509: certificate signed by unknown authority` error.

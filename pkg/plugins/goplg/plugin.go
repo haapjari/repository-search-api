@@ -336,4 +336,13 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// TODO: What do we need (?)
 	// TODO: Cache
 	// TODO: Variable that holds the sum of code lines.
+
+	// This is the sequence to copy the library to the local filesystem and calculate the code lines.
+	// go get github.com/xlab/treeprint
+	// cd $GOPATH/pkg/mod/github.com/xlab/treeprint\@v1.1.0/
+	// gocloc .
+
+	// TODO: For some reason, I am not able to remove these from the file system with regular privileges.
+	// I am not comfortable to give this a root permission, so I will start to work this into container for now.
+	// rm -rf $GOPATH/pkg/mod/github.com/xlab/treeprint\@v1.1.0/
 }
