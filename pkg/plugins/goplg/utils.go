@@ -173,3 +173,25 @@ func copyAndCapture(w io.Writer, r io.Reader) ([]byte, error) {
 		}
 	}
 }
+
+// Check if the sliceA contain all the elements of sliceB
+func checkIfSliceContainsAllElements(sliceA []string, sliceB []string) bool {
+	// Check if sliceA contains all the elements of sliceB
+	for _, elemB := range sliceB {
+		found := false
+
+		for _, elemA := range sliceA {
+			if elemA == elemB {
+				found = true
+
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}

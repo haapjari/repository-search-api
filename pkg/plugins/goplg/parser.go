@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"github.com/haapjari/glass/pkg/utils"
 )
 
 type Parser struct {
@@ -128,4 +130,70 @@ func parseLibrariesFromModFile(modFile string) []string {
 
 	// Trim the buffer slice to the length of the filtered libraries
 	return buf[:bufIdx]
+}
+
+// Parse the remote locations of inner go.mod files from the project, and save them to a variable.
+func parseInnerModFiles(str string, project string) []string {
+
+	var (
+		innerModFilesString string
+		innerModFiles       []string
+	)
+
+	// If the project has inner modfiles, parse the locations to the variable innerModFilesSlice.
+	innerModFiles = strings.Split(str, "replace")
+	innerModFilesString = innerModFiles[1]
+
+	// remove trailing '(' and ')' runes from the string
+	innerModFilesString = utils.RemoveCharFromString(innerModFilesString, '(')
+	innerModFilesString = utils.RemoveCharFromString(innerModFilesString, ')')
+
+	// remove trailing whitespace,
+	innerModFilesString = strings.TrimSpace(innerModFilesString)
+
+	// split the strings from newline characters
+	innerModFiles = strings.Split(innerModFilesString, "\n")
+
+	// remove trailing whitespaces from the beginning and end of the elements in the string
+	for i, line := range innerModFiles {
+		innerModFiles[i] = strings.TrimSpace(line)
+	}
+
+	// remove characters until => occurence.
+	for i, line := range innerModFiles {
+		str := strings.Index(line, "=>")
+		innerModFiles[i] = line[str+2:]
+	}
+
+	// TODO: Refactor prefix and postfix, with actual repository names.
+	// add the "https://raw.githubusercontent.com/kubernetes/kubernetes/master" prefix and
+	// "/go.mod" postfix to the string.
+	prefix := "https://raw.githubusercontent.com/" + project + "/master"
+	postfix := "go.mod"
+
+	for i, line := range innerModFiles {
+		// removing the dot from the beginning of the file
+		line = strings.Replace(line, ".", "", 1)
+
+		// remove whitespace inbetween the string
+		line = strings.Replace(line, " ", "", -1)
+
+		// concat the prefix and postfix
+		line = prefix + line + "/" + postfix
+
+		// modify the original slice
+		innerModFiles[i] = line
+	}
+
+	return innerModFiles
+}
+
+// Check if the project contains inner modfiles.
+func checkInnerModFiles(str string) bool {
+	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
+	if strings.Count(str, "replace") > 0 {
+		return true
+	}
+
+	return false
 }
