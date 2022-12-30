@@ -55,10 +55,7 @@ REPOSITORY_API_BASEURL=
 
 ## TODO
 
-- Calculating Code Lines of a Primary Repository.
 - Calculating Code Lines of a Library.
-- Library Parsing.
-    - Library parsing is done with analyzing `go.mod` -files.
 - Dockerfile 
     - Unable to Create Post Request from inside the container, getting `x509: certificate signed by unknown authority` error.
 

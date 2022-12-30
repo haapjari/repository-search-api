@@ -203,3 +203,54 @@ func printStringSlice(slice []string) {
 		fmt.Println(elem)
 	}
 }
+
+// removeDuplicates removes duplicates from a slice of strings
+func removeDuplicates(slice []string) []string {
+	// Create a map to keep track of the elements that have already been seen
+	seen := make(map[string]struct{}, len(slice))
+
+	// Initialize the result slice
+	var result []string
+
+	// Iterate over the slice
+	for _, elem := range slice {
+		// Check if the element has already been seen
+		if _, ok := seen[elem]; !ok {
+			// If it has not been seen, add it to the result slice and mark it as seen
+			result = append(result, elem)
+			seen[elem] = struct{}{}
+		}
+	}
+
+	return result
+}
+
+// countDuplicates counts the number of duplicates in a slice of strings
+func countDuplicates(slice []string) int {
+	// Initialize a map to hold the counts for each string
+	counts := make(map[string]int)
+
+	// Iterate over the slice
+	for _, s := range slice {
+		// If the string is already in the map, increment its count
+		if _, ok := counts[s]; ok {
+			counts[s]++
+		} else {
+			// Otherwise, set its count to 1
+			counts[s] = 1
+		}
+	}
+
+	// Initialize a variable to hold the total number of duplicates
+	numDuplicates := 0
+
+	// Iterate over the map of counts
+	for _, count := range counts {
+		// If the count is greater than 1, add it to the total number of duplicates
+		if count > 1 {
+			numDuplicates += count - 1
+		}
+	}
+
+	return numDuplicates
+}

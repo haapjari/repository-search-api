@@ -264,7 +264,7 @@ func (g *GoPlugin) enrichWithMetadata() {
 func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// Query String
 	// TODO: Replace URL from queryString with repositoryUrl
-	queryString := "{repository(name: \"github.com/kubernetes/kubernetes\") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
+	queryString := "{repository(name:" + "\"" + "github.com/kubernetes/kubernetes" + "\"" + ") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
 
 	// Construct the Query
 	rawRequestBody := map[string]string{
@@ -297,36 +297,43 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// Parse JSON with "https://github.com/buger/jsonparser"
 	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
+	// Parse the libraries from the go.mod file and inner go.mod files of a project and save them to variables.
 	var (
 		libraries     []string
 		innerModFiles []string
-		// totalCodeLines           int
 	)
+
+	// outerModFile as String is called often, so it is saved to a variable.
+	outerModFileString := outerModFile.String()
 
 	// TODO: Parse the real name here.
 	// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
-	if checkInnerModFiles(outerModFile.String()) {
-		innerModFiles = parseInnerModFiles(outerModFile.String(), "kubernetes/kubernetes")
+	if checkInnerModFiles(outerModFileString) {
+		innerModFiles = parseInnerModFiles(outerModFileString, "kubernetes/kubernetes")
 	}
 
 	// Parse the name of libraries from modfile to a slice.
-	libraries = parseLibrariesFromModFile(outerModFile.String())
+	libraries = parseLibrariesFromModFile(outerModFileString)
 
-	// TODO: This will happen in a loop.
-
-	// Parse the library names of the inner go.mod files, and append them to the libraries slice.
-	for i := 0; i < len(innerModFiles); i++ {
-		// Perform a GET request, to get the content of the inner modfile.
-		modFileContent := performGetRequest(innerModFiles[i])
-
-		// Append the libraries from the inner modfile to the libraries slice.
-		libraries = append(libraries, parseLibrariesFromModFile(modFileContent)...)
+	// If the go.mod file has "replace" - keyword, it has inner go.mod files,
+	// append libraries from inner go.mod files to the libraries slice.
+	if checkInnerModFiles(outerModFileString) {
+		// Parse the library names of the inner go.mod files, and append them to the libraries slice.
+		for i := 0; i < len(innerModFiles); i++ {
+			// Perform a GET request, to get the content of the inner modfile.
+			// Append the libraries from the inner modfile to the libraries slice.
+			libraries = append(libraries, parseLibrariesFromModFile(performGetRequest(innerModFiles[i]))...)
+		}
 	}
 
-	// TODO: Remove
+	// Remove duplicates from the libraries slice.
+	libraries = removeDuplicates(libraries)
+
+	// TODO: Remove this
 	printStringSlice(libraries)
 
-	// TODO: Create a cache, that holds the code lines of analyzed libraries.
 	// TODO: Implement functionality to calculate code lines of the libraries.
-	// TODO: Delete duplicates from the libraries slice.
+	// TODO: What do we need (?)
+	// TODO: Cache
+	// TODO: Variable that holds the sum of code lines.
 }
