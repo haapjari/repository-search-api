@@ -175,3 +175,14 @@ These values will be averaged in a single `Quality Measure`. Correlation will be
     - Columns: RepositoryId, Commit Date, Commit User, Repository Name
 
 ---
+
+### Run PostgreSQL as a Docker Container
+
+- Create Docker Network: docker network create --subnet=172.18.0.0/16 glass_network
+- Run the PostgreSQL container in a certain network, with couple environment variables, and static IP -address.
+
+```docker run -d --name postgres --net glass_network --ip 172.19.0.2 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres```
+
+- Verify, that the PostgreSQL is running, with: `psql -h localhost -U postgres`
+
+---

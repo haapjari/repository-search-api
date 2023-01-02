@@ -56,11 +56,10 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 	return g
 }
 
-func (g *GoPlugin) GetRepositoryMetadata(count int) {
-	// g.fetchRepositories(count)
+func (g *GoPlugin) GetRepositoryMetadata(c int) {
+	// g.fetchRepositories(c)
 	// g.deleteDuplicateRepositories // TODO
-	// g.enrichRepositoriesWithPrimaryData()
-
+	// g.enrichWithMetadata()
 	// g.calculateSizeOfPrimaryRepositories()
 
 	g.enrichWithLibraryData()

@@ -28,6 +28,7 @@ RUN         go build -o ./bin/glass ./cmd/main.go
 
 # Environment Variables
 ENV         PORT=8080
+ENV         GIN_MODE=release
 
 # Expose the Port
 EXPOSE      $PORT
