@@ -34,6 +34,9 @@ func SetupRouter() {
 
 	r.GET("/api/glass/v1/repository/fetch", repository.FetchRepositories)
 
+	// TODO
+	//	r.GET("/api/glass/v1/repository/csv", repository.GenerateCsv)
+
 	r.GET("/api/glass/v1/metrics", prom.Handler)
 
 	r.Run()

@@ -3,8 +3,6 @@ FROM        golang:bullseye
 # General Environment Variables
 ENV         GIN_MODE=release
 ENV         PORT=8080
-
-# General GoLang Environment Variables
 ENV         GOOS=linux
 ENV         GOARCH=amd64
 ENV         CGO_ENABLED=0
@@ -25,10 +23,6 @@ RUN         go install github.com/hhatto/gocloc/cmd/gocloc@latest
 
 # Build the Binary
 RUN         go build -o ./bin/glass ./cmd/main.go
-
-# Environment Variables
-ENV         PORT=8080
-ENV         GIN_MODE=release
 
 # Expose the Port
 EXPOSE      $PORT
