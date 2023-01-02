@@ -1,7 +1,4 @@
-#######################################
-#######################################
-
-FROM        golang:bullseye as builder
+FROM        golang:bullseye 
 
 # General Environment Variables
 ENV         GIN_MODE=release
@@ -23,30 +20,17 @@ RUN         apt-get update && apt-get install git
 # Install the Dependencies
 RUN         go get ./...
 
+# Install hhatto/gocloc Binary
+RUN         go install github.com/hhatto/gocloc/cmd/gocloc@latest
+
 # Build the Binary
 RUN         go build -o ./bin/glass ./cmd/main.go
 
-#######################################
-#######################################
-
-# Scratch Image
-FROM        scratch
-
 # Environment Variables
 ENV         PORT=8080
-
-# Because it's a scratch image, other paths does not exist.
-WORKDIR     /
-
-# Copy Binary to the Scratch Image
-COPY        --from=builder /go/src/glass/bin/glass /glass
-
-# Copy Environment Variables
-# TODO: This should be passed from the docker-compose
-COPY        --from=builder /go/src/glass/.env /.env
 
 # Expose the Port
 EXPOSE      $PORT
 
 # Run the Binary
-ENTRYPOINT ["./glass"]
+ENTRYPOINT ["./bin/glass"]

@@ -63,7 +63,7 @@ func (g *GoPlugin) GetRepositoryMetadata(count int) {
 
 	// g.calculateSizeOfPrimaryRepositories()
 
-	g.enrichWithLibraryData("")
+	g.enrichWithLibraryData()
 }
 
 // Enriches the metadata with "Original Codebase Size" variables.
@@ -261,10 +261,18 @@ func (g *GoPlugin) enrichWithMetadata() {
 
 // TODO
 // Enrich the values in the repositories -table with the codebase sizes of the libraries, and append them to the database.
-func (g *GoPlugin) enrichWithLibraryData(url string) {
+func (g *GoPlugin) enrichWithLibraryData() {
+	// Query all the repositories from the database.
+	repositories := g.getAllRepositories()
+	//	repositoriesCount := len(repositories.RepositoryData)
+
+	// TODO: Instead of using the hardcoded value - refactor to use loop.
+
+	repositoryUrl := repositories.RepositoryData[0].RepositoryUrl
+
 	// Query String
-	// TODO: Replace URL from queryString with repositoryUrl
-	queryString := "{repository(name:" + "\"" + "github.com/kubernetes/kubernetes" + "\"" + ") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
+	// TODO: Export the GraphQL Query -> .env or separate config file.
+	queryString := "{repository(name:" + "\"" + repositoryUrl + "\"" + ") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
 
 	// Construct the Query
 	rawRequestBody := map[string]string{
@@ -294,6 +302,7 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
 	utils.CheckErr(err)
 
+	// TODO: Move Parse String -> .env or separate config file
 	// Parse JSON with "https://github.com/buger/jsonparser"
 	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
 
@@ -306,10 +315,14 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// outerModFile as String is called often, so it is saved to a variable.
 	outerModFileString := outerModFile.String()
 
-	// TODO: Parse the real name here.
 	// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
 	if checkInnerModFiles(outerModFileString) {
-		innerModFiles = parseInnerModFiles(outerModFileString, "kubernetes/kubernetes")
+		// Parse the ending from URL.
+		owner, repo, err := parseRepositoryName(repositoryUrl)
+		utils.CheckErr(err)
+
+		// TODO: There is a bug, this doesn't work.
+		innerModFiles = parseInnerModFiles(outerModFileString, owner+"/"+repo)
 	}
 
 	// Parse the name of libraries from modfile to a slice.
@@ -319,7 +332,6 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 	// append libraries from inner go.mod files to the libraries slice.
 	if checkInnerModFiles(outerModFileString) {
 		// Parse the library names of the inner go.mod files, and append them to the libraries slice.
-		// TODO: Think, could this be splitted into goroutines (?)
 		for i := 0; i < len(innerModFiles); i++ {
 			// Perform a GET request, to get the content of the inner modfile.
 			// Append the libraries from the inner modfile to the libraries slice.
@@ -340,10 +352,13 @@ func (g *GoPlugin) enrichWithLibraryData(url string) {
 
 	// This is the sequence to copy the library to the local filesystem and calculate the code lines.
 	// go get github.com/xlab/treeprint
-	// cd $GOPATH/pkg/mod/github.com/xlab/treeprint\@v1.1.0/
+	// cd $GOPATH/pkg/mod/github.com/xlab/treeprint@v1.1.0
 	// gocloc .
 
+	// TODO: When running this part with "go run" remember, that it might delete repositories, which
+	// are actually in use by the program, so it is safer to run this with compiling.
 	// TODO: For some reason, I am not able to remove these from the file system with regular privileges.
 	// I am not comfortable to give this a root permission, so I will start to work this into container for now.
 	// rm -rf $GOPATH/pkg/mod/github.com/xlab/treeprint\@v1.1.0/
+
 }

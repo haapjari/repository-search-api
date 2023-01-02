@@ -161,8 +161,11 @@ func parseInnerModFiles(str string, project string) []string {
 
 	// remove characters until => occurence.
 	for i, line := range innerModFiles {
-		str := strings.Index(line, "=>")
-		innerModFiles[i] = line[str+2:]
+		parts := strings.Split(line, "=>")
+		if len(parts) < 2 {
+			continue
+		}
+		innerModFiles[i] = parts[1]
 	}
 
 	// TODO: Refactor prefix and postfix, with actual repository names.

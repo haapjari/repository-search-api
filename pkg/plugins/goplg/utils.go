@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/haapjari/glass/pkg/models"
@@ -253,4 +254,13 @@ func countDuplicates(slice []string) int {
 	}
 
 	return numDuplicates
+}
+
+// Parse repository name from url.
+func parseRepositoryName(s string) (string, string, error) {
+	parts := strings.Split(s, "/")
+	if len(parts) < 3 {
+		return "", "", fmt.Errorf("invalid repository string: %s", s)
+	}
+	return parts[1], parts[2], nil
 }

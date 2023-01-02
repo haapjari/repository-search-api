@@ -1,7 +1,8 @@
 include make.properties
 
 run:
-	go run ${MAIN_MODULE}
+	make compile
+	make run-bin
 
 air:
 	air
