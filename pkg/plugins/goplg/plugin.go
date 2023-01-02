@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -57,18 +58,33 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 }
 
 func (g *GoPlugin) GetRepositoryMetadata(c int) {
-	// g.fetchRepositories(c)
+	g.fetchRepositories(c)
 	// g.deleteDuplicateRepositories // TODO
-	// g.enrichWithMetadata()
-	// g.calculateSizeOfPrimaryRepositories()
+	g.enrichWithMetadata()
 
-	g.enrichWithLibraryData()
+	go func() {
+		g.calculateSizeOfPrimaryRepositories()
+	}()
+
+	// g.enrichWithLibraryData()
+
 }
 
 // Enriches the metadata with "Original Codebase Size" variables.
 func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 	// fetch all the repositories from the database.
 	repositories := g.getAllRepositories()
+
+	var wg sync.WaitGroup
+	remainingJobs := len(repositories.RepositoryData)
+
+	// Check if the "tmp" directory exists.
+	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
+		// Create a temporary directory to clone the repositories into.
+		if err := os.Mkdir("tmp", 0777); err != nil {
+			utils.CheckErr(err)
+		}
+	}
 
 	// calculate the amount of repositories, and save it to variable.
 	len := len(repositories.RepositoryData)
@@ -78,52 +94,76 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 		repositories.RepositoryData[i].RepositoryUrl = "https://" + repositories.RepositoryData[i].RepositoryUrl + ".git"
 	}
 
-	var (
-		output string
-		err    string
-	)
+	// Create a channel to send work to the goroutines.
+	jobs := make(chan struct{ url, name string })
 
-	// Calculate the amount of code lines for each repository.
-	for i := 0; i < len; i++ {
+	// Create a fixed number of goroutines (e.g., 10).
+	const numWorkers = 20
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			for j := range jobs {
+				// Clone the repository into a temporary directory.
+				// Attempt to clone "master" branch.
+				output, err := runCommand("git", "clone", "--depth", "1", j.url, "tmp"+"/"+j.name)
+				if err != "" {
+					fmt.Println(err)
+				}
+
+				fmt.Println(output)
+
+				// Run "gocloc" and calculate the amount of lines.
+				lines := runGoCloc("tmp/" + j.name)
+
+				// Update the database.
+				g.updateCodeLinesToDatabase(j.name, lines)
+
+				// Delete the repository.
+				output, err = runCommand("rm", "-rf", "tmp"+"/"+j.name)
+				fmt.Println(output)
+				if err != "" {
+					fmt.Println(err)
+				}
+
+				// Decrement the remaining jobs counter.
+				remainingJobs--
+				fmt.Println("Remaining Jobs: ", remainingJobs)
+			}
+		}()
+	}
+
+	// Send work to the goroutines.
+	for _, repo := range repositories.RepositoryData {
 		// If the OriginalCodebaseSize variable is empty, analyze the repository.
 		// Otherwise skip the repository, in order to avoid double analysis.
-		if repositories.RepositoryData[i].OriginalCodebaseSize == "" {
-			// Save the repository url and name to variables, for easier access and less repetition.
-			url := repositories.RepositoryData[i].RepositoryUrl
-			name := repositories.RepositoryData[i].RepositoryName
-
-			// Clone the repository.
-			output, err = runCommand("git", "clone", url)
-			fmt.Println(output)
-			if err != "" {
-				fmt.Println(err)
-			}
-
-			// Run "gocloc" and calculate the amount of lines.
-			lines := runGoCloc(name)
-
-			// Copy the repository struct to a new variable.
-			var repositoryStruct models.Repository
-
-			// Find matching repository from the database.
-			if err := g.DatabaseClient.Where("repository_name = ?", name).First(&repositoryStruct).Error; err != nil {
-				utils.CheckErr(err)
-			}
-
-			// Update the OriginalCodebaseSize variable, with calculated value.
-			repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
-
-			// Update the database.
-			g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
-
-			// Delete the repository.
-			output, err = runCommand("rm", "-rf", name)
-			fmt.Println(output)
-			if err != "" {
-				fmt.Println(err)
-			}
+		if repo.OriginalCodebaseSize == "" {
+			// Send work to the goroutines.
+			jobs <- struct{ url, name string }{repo.RepositoryUrl, repo.RepositoryName}
 		}
 	}
+
+	// Close the jobs channel to signal the goroutines to stop.
+	close(jobs)
+
+	// Wait for all the goroutines to finish.
+	wg.Wait()
+}
+
+func (g *GoPlugin) updateCodeLinesToDatabase(name string, lines int) {
+	// Copy the repository struct to a new variable.
+	var repositoryStruct models.Repository
+
+	// Find matching repository from the database.
+	if err := g.DatabaseClient.Where("repository_name = ?", name).First(&repositoryStruct).Error; err != nil {
+		utils.CheckErr(err)
+	}
+
+	// Update the OriginalCodebaseSize variable, with calculated value.
+	repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
+
+	// Update the database.
+	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
 }
 
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and

@@ -4,6 +4,9 @@ run:
 	make compile
 	make run-bin
 
+workspace:
+	go work use .
+
 air:
 	air
 
