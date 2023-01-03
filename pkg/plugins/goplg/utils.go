@@ -264,3 +264,55 @@ func parseRepositoryName(s string) (string, string, error) {
 	}
 	return parts[1], parts[2], nil
 }
+
+// Creates a slice of repositories, which are duplicates in an original list.
+func findDuplicateRepositoryEntries(repositories []models.Repository) []models.Repository {
+	// Create a map to store the names of the repositories that we've seen so far
+	seenRepositories := make(map[string]bool)
+
+	// Create a slice to store the duplicate entries
+	duplicateEntries := []models.Repository{}
+
+	// Iterate through the slice of repositories
+	for _, repository := range repositories {
+		// If we've already seen this repository, add it to the slice of duplicate entries
+		if seenRepositories[repository.RepositoryName] {
+			duplicateEntries = append(duplicateEntries, repository)
+		} else {
+			// Otherwise, mark the repository as seen
+			seenRepositories[repository.RepositoryName] = true
+		}
+	}
+
+	return duplicateEntries
+}
+
+// Check if a folder exists in the file system.
+func folderExists(folderPath string) bool {
+	// Use os.Stat to get the file information for the folder
+	_, err := os.Stat(folderPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// The folder does not exist
+			return false
+		} else {
+			// Some other error occurred
+			fmt.Printf("Error checking if folder exists: %v", err)
+			return false
+		}
+	}
+
+	// The folder exists
+	return true
+}
+
+// Parse "github.com/mholt/archiver/v3 v3.5.1" into the format "github.com/mholt/archiver/v3@v3.5.1"
+func parseUrlToDownloadFormat(input string) string {
+	// Split the input string on the first space character
+	parts := strings.SplitN(input, " ", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	// Return the first part (the package name) followed by an @ symbol and the second part (the version)
+	return parts[0] + "@" + parts[1]
+}

@@ -57,17 +57,44 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 	return g
 }
 
+// Fetch Repositories and Enrich the Repositories with Metadata.
 func (g *GoPlugin) GetRepositoryMetadata(c int) {
-	g.fetchRepositories(c)
-	// g.deleteDuplicateRepositories // TODO
-	g.enrichWithMetadata()
+	//	g.fetchRepositories(c)
+	// g.deleteDuplicateRepositories()
+	//g.enrichWithMetadata()
 
-	go func() {
-		g.calculateSizeOfPrimaryRepositories()
-	}()
+	//go func() {
+	//g.calculateSizeOfPrimaryRepositories()
+	//}()
 
-	// g.enrichWithLibraryData()
+	g.enrichWithLibraryData() // TODO
+}
 
+// Delete duplicate repositories.
+func (g *GoPlugin) deleteDuplicateRepositories() {
+	// get all repositories
+	repositories := g.getAllRepositories()
+
+	// slice of duplicate repositories
+	duplicateRepositories := findDuplicateRepositoryEntries(repositories.RepositoryData)
+
+	// amount of duplicates
+	amount := len(duplicateRepositories)
+
+	for i := 0; i < amount; i++ {
+		// copy the model, which is going to be deleted
+		var r models.Repository
+
+		name := duplicateRepositories[i].RepositoryName
+
+		// Find matching repository from the database.
+		if err := g.DatabaseClient.Where("repository_name = ?", name).First(&r).Error; err != nil {
+			utils.CheckErr(err)
+		}
+
+		// delete from database
+		g.DatabaseClient.Delete(&r)
+	}
 }
 
 // Enriches the metadata with "Original Codebase Size" variables.
@@ -117,7 +144,7 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 				lines := runGoCloc("tmp/" + j.name)
 
 				// Update the database.
-				g.updateCodeLinesToDatabase(j.name, lines)
+				g.updatePrimaryCodeLinesToDatabase(j.name, lines)
 
 				// Delete the repository.
 				output, err = runCommand("rm", "-rf", "tmp"+"/"+j.name)
@@ -150,7 +177,7 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 	wg.Wait()
 }
 
-func (g *GoPlugin) updateCodeLinesToDatabase(name string, lines int) {
+func (g *GoPlugin) updatePrimaryCodeLinesToDatabase(name string, lines int) {
 	// Copy the repository struct to a new variable.
 	var repositoryStruct models.Repository
 
@@ -161,6 +188,22 @@ func (g *GoPlugin) updateCodeLinesToDatabase(name string, lines int) {
 
 	// Update the OriginalCodebaseSize variable, with calculated value.
 	repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
+
+	// Update the database.
+	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
+}
+
+func (g *GoPlugin) updateLibraryCodeLinesToDatabase(name string, lines int) {
+	// Copy the repository struct to a new variable.
+	var repositoryStruct models.Repository
+
+	// Find matching repository from the database.
+	if err := g.DatabaseClient.Where("repository_name = ?", name).First(&repositoryStruct).Error; err != nil {
+		utils.CheckErr(err)
+	}
+
+	// Update the OriginalCodebaseSize variable, with calculated value.
+	repositoryStruct.LibraryCodebaseSize = strconv.Itoa(lines)
 
 	// Update the database.
 	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
@@ -226,7 +269,40 @@ func (g *GoPlugin) enrichWithMetadata() {
 			// Parse Owner and Name values from the Repository, which are used in the GraphQL query.
 			owner, name := g.Parser.ParseRepository(r.RepositoryData[i].RepositoryUrl)
 
-			queryStr := "{repository(owner: \"" + owner + "\", name: \"" + name + "\") {defaultBranchRef {target {... on Commit {history {totalCount}}}}openIssues: issues(states:OPEN) {totalCount}closedIssues: issues(states:CLOSED) {totalCount}languages {totalSize}stargazerCount licenseInfo {key}createdAt latestRelease{publishedAt} primaryLanguage{name}}}"
+			// Query String
+			queryStr := fmt.Sprintf(`{
+					repository(owner: "%s", name: "%s") {
+						defaultBranchRef {
+							target {
+								... on Commit {
+								history {
+									totalCount
+								}
+							}
+						}
+					}	
+					openIssues: issues(states:OPEN) {
+						totalCount
+					}
+					closedIssues: issues(states:CLOSED) {
+						totalCount
+					}
+					languages {
+						totalSize
+					}
+					stargazerCount
+					licenseInfo {
+						key
+					}
+					createdAt
+					latestRelease{
+						publishedAt
+					}
+					primaryLanguage{
+						name
+					}
+				}
+			}`, owner, name)
 
 			rawGithubRequestBody := map[string]string{
 				"query": queryStr,
@@ -306,12 +382,24 @@ func (g *GoPlugin) enrichWithLibraryData() {
 	//	repositoriesCount := len(repositories.RepositoryData)
 
 	// TODO: Instead of using the hardcoded value - refactor to use loop.
-
 	repositoryUrl := repositories.RepositoryData[0].RepositoryUrl
+	repositoryName := repositories.RepositoryData[0].RepositoryName
 
 	// Query String
 	// TODO: Export the GraphQL Query -> .env or separate config file.
-	queryString := "{repository(name:" + "\"" + repositoryUrl + "\"" + ") {defaultBranch {target {commit {blob(path: \"go.mod\") {content}}}}}}"
+	queryString := fmt.Sprintf(`{
+		repository(name: "%s") {
+			defaultBranch {
+				target {
+					commit {
+						blob(path: "go.mod") {
+							content
+						}
+					}
+				}
+			}
+		}
+	}`, repositoryUrl)
 
 	// Construct the Query
 	rawRequestBody := map[string]string{
@@ -347,8 +435,9 @@ func (g *GoPlugin) enrichWithLibraryData() {
 
 	// Parse the libraries from the go.mod file and inner go.mod files of a project and save them to variables.
 	var (
-		libraries     []string
-		innerModFiles []string
+		libraries             []string
+		innerModFiles         []string
+		totalLibraryCodeLines int
 	)
 
 	// outerModFile as String is called often, so it is saved to a variable.
@@ -360,7 +449,6 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		owner, repo, err := parseRepositoryName(repositoryUrl)
 		utils.CheckErr(err)
 
-		// TODO: There is a bug, this doesn't work.
 		innerModFiles = parseInnerModFiles(outerModFileString, owner+"/"+repo)
 	}
 
@@ -381,23 +469,58 @@ func (g *GoPlugin) enrichWithLibraryData() {
 	// Remove duplicates from the libraries slice.
 	libraries = removeDuplicates(libraries)
 
-	// TODO: Remove this
-	printStringSlice(libraries)
-
-	// TODO: Implement functionality to calculate code lines of the libraries.
-	// TODO: What do we need (?)
 	// TODO: Cache
-	// TODO: Variable that holds the sum of code lines.
+	// TODO: Optimizations: Small Repository Analysis took 28 seconds, how to make this faster (?)
 
-	// This is the sequence to copy the library to the local filesystem and calculate the code lines.
-	// go get github.com/xlab/treeprint
-	// cd $GOPATH/pkg/mod/github.com/xlab/treeprint@v1.1.0
-	// gocloc .
+	// Extract this a Variable, so the len function doesn't calulate itself multiple times.
+	libCount := len(libraries)
 
-	// TODO: When running this part with "go run" remember, that it might delete repositories, which
-	// are actually in use by the program, so it is safer to run this with compiling.
-	// TODO: For some reason, I am not able to remove these from the file system with regular privileges.
-	// I am not comfortable to give this a root permission, so I will start to work this into container for now.
-	// rm -rf $GOPATH/pkg/mod/github.com/xlab/treeprint\@v1.1.0/
+	// Count the Code Lines for the Analyzed Library.
+	// TODO: The amount is different in two different runs. Check, if this has a bug.
+	for i := 0; i < libCount; i++ {
+		// Construct the Local Path to the Library.
+		// Tested in Go 1.19.4
+		libPath := utils.GetGoPath() + "/" + "pkg/mod" + "/" + parseUrlToDownloadFormat(libraries[i])
 
+		// If the folder exists in the file system, it will not be deleted afterwards.
+		if folderExists(libPath) {
+			libraryUrl := parseUrlToDownloadFormat(libraries[i])
+
+			// Download the Library to the File System.
+			output, err := runCommand("go", "get", "-u", libraryUrl)
+			if err != "" {
+				fmt.Println(err)
+			}
+
+			// Output of the Comment
+			fmt.Println(output)
+
+			// Calculate the amount of Code Lines.
+			lines := runGoCloc(libPath)
+
+			// Append to the total variable.
+			totalLibraryCodeLines = totalLibraryCodeLines + lines
+		}
+
+		// Folder doesn't exist in the file system, and after it has been analyzed, it will be deleted.
+		libraryUrl := parseUrlToDownloadFormat(libraries[i])
+
+		// Download the Library to the local File System.
+		output, errStr := runCommand("go", "get", "-u", libraryUrl)
+		if errStr != "" {
+			fmt.Println(err)
+		}
+
+		// Output of the Comment.
+		fmt.Println(output)
+
+		// Calculate the Code Lines of the Library.
+		lines := runGoCloc(libPath)
+
+		// Append to the total variable.
+		totalLibraryCodeLines = totalLibraryCodeLines + lines
+	}
+
+	// Update this to the Database.
+	g.updateLibraryCodeLinesToDatabase(repositoryName, totalLibraryCodeLines)
 }
