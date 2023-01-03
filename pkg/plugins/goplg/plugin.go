@@ -477,6 +477,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 
 	// Count the Code Lines for the Analyzed Library.
 	// TODO: The amount is different in two different runs. Check, if this has a bug.
+	// Copying the code to the local system, and upgrading, is messing up the project.
 	for i := 0; i < libCount; i++ {
 		// Construct the Local Path to the Library.
 		// Tested in Go 1.19.4
@@ -487,7 +488,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			libraryUrl := parseUrlToDownloadFormat(libraries[i])
 
 			// Download the Library to the File System.
-			output, err := runCommand("go", "get", "-u", libraryUrl)
+			output, err := runCommand("go", "get", libraryUrl)
 			if err != "" {
 				fmt.Println(err)
 			}
@@ -506,7 +507,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		libraryUrl := parseUrlToDownloadFormat(libraries[i])
 
 		// Download the Library to the local File System.
-		output, errStr := runCommand("go", "get", "-u", libraryUrl)
+		output, errStr := runCommand("go", "get", libraryUrl)
 		if errStr != "" {
 			fmt.Println(err)
 		}
