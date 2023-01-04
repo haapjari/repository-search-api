@@ -475,6 +475,12 @@ func (g *GoPlugin) enrichWithLibraryData() {
 	// Extract this a Variable, so the len function doesn't calulate itself multiple times.
 	libCount := len(libraries)
 
+	// Change GOPATH to point to temporary directory.
+	tempGoPath := utils.GetTempGoPath()
+	goPath := utils.GetGoPath()
+
+	os.Setenv("GOPATH", tempGoPath)
+
 	// Count the Code Lines for the Analyzed Library.
 	// TODO: The amount is different in two different runs. Check, if this has a bug.
 	// Copying the code to the local system, and upgrading, is messing up the project.
@@ -487,8 +493,10 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		if folderExists(libPath) {
 			libraryUrl := parseUrlToDownloadFormat(libraries[i])
 
+			// Change the GOPATH to point to the temporary directory.
+
 			// Download the Library to the File System.
-			output, err := runCommand("go", "get", libraryUrl)
+			output, err := runCommand("go", "get", "-d", "-v", libraryUrl)
 			if err != "" {
 				fmt.Println(err)
 			}
@@ -507,7 +515,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		libraryUrl := parseUrlToDownloadFormat(libraries[i])
 
 		// Download the Library to the local File System.
-		output, errStr := runCommand("go", "get", libraryUrl)
+		output, errStr := runCommand("go", "get", "-d", "-v", libraryUrl)
 		if errStr != "" {
 			fmt.Println(err)
 		}
@@ -521,6 +529,9 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		// Append to the total variable.
 		totalLibraryCodeLines = totalLibraryCodeLines + lines
 	}
+
+	// Change GOPATH to point back to the original directory.
+	os.Setenv("GOPATH", goPath)
 
 	// Update this to the Database.
 	g.updateLibraryCodeLinesToDatabase(repositoryName, totalLibraryCodeLines)

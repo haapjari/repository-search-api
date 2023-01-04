@@ -43,6 +43,13 @@ func GetSourceGraphGraphQlApiBaseurl() string {
 	return fmt.Sprint(viper.Get("SOURCEGRAPH_GRAPHQL_API_BASEURL"))
 }
 
+func GetTempGoPath() string {
+	viper.SetConfigFile("env")
+	viper.ReadInConfig()
+
+	return fmt.Sprint(viper.Get("TEMP_GOPATH"))
+}
+
 func GetGoPath() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
