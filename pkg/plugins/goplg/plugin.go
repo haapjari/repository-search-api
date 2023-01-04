@@ -494,6 +494,8 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			fmt.Println("Is Vendored?: ", libStr, " ", isVendored(libStr))
 
 			// TODO: Check if the library is vendored, if it is, modify the libPath.
+			// isVendored is not working properly, the input:
+			// github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 should produce true, but its producing false
 			if isVendored(libStr) {
 				libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToVendorDownloadFormat(libStr)
 				fmt.Println(libPath)

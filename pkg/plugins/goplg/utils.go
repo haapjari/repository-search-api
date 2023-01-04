@@ -368,6 +368,8 @@ func isVendored(pkg string) bool {
 		return false
 	}
 
+	fmt.Println("What odes the command print ", string(output))
+
 	// If the output of the 'go list' command contains "vendor", the package is vendored
 	return strings.Contains(strings.TrimSpace(string(output)), "vendor")
 }
