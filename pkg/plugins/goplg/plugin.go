@@ -482,12 +482,13 @@ func (g *GoPlugin) enrichWithLibraryData() {
 	os.Setenv("GOPATH", tempGoPath)
 
 	// Count the Code Lines for the Analyzed Library.
-	// TODO: The amount is different in two different runs. Check, if this has a bug.
 	// Copying the code to the local system, and upgrading, is messing up the project.
+	// TODO: Now we can install to specific folder and calculate code lines I think - but now the
+	// Writing to database part is not working, thats going to be the next item to be worked on.
 	for i := 0; i < libCount; i++ {
 		// Construct the Local Path to the Library.
 		// Tested in Go 1.19.4
-		libPath := utils.GetGoPath() + "/" + "pkg/mod" + "/" + parseUrlToDownloadFormat(libraries[i])
+		libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToDownloadFormat(libraries[i])
 
 		// If the folder exists in the file system, it will not be deleted afterwards.
 		if folderExists(libPath) {
