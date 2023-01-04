@@ -59,13 +59,13 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 
 // Fetch Repositories and Enrich the Repositories with Metadata.
 func (g *GoPlugin) GetRepositoryMetadata(c int) {
-	//	g.fetchRepositories(c)
-	// g.deleteDuplicateRepositories()
-	//g.enrichWithMetadata()
+	g.fetchRepositories(c)
+	g.deleteDuplicateRepositories()
+	g.enrichWithMetadata()
 
-	//go func() {
-	//g.calculateSizeOfPrimaryRepositories()
-	//}()
+	go func() {
+		g.calculateSizeOfPrimaryRepositories()
+	}()
 
 	g.enrichWithLibraryData() // TODO
 }
@@ -376,164 +376,192 @@ func (g *GoPlugin) enrichWithMetadata() {
 
 // TODO
 // Enrich the values in the repositories -table with the codebase sizes of the libraries, and append them to the database.
+// TODO: Some of the libraries are vendored, and before analyzing a library, we should check if it is vendored or not.
+// Before running the gocloc, the vendor means, that the local path is different.
 func (g *GoPlugin) enrichWithLibraryData() {
 	// Query all the repositories from the database.
 	repositories := g.getAllRepositories()
-	//	repositoriesCount := len(repositories.RepositoryData)
+	repositoriesCount := len(repositories.RepositoryData)
 
-	// TODO: Instead of using the hardcoded value - refactor to use loop.
-	repositoryUrl := repositories.RepositoryData[0].RepositoryUrl
-	repositoryName := repositories.RepositoryData[0].RepositoryName
+	for i := 0; i < repositoriesCount; i++ {
+		// TODO: Instead of using the hardcoded value - refactor to use loop.
+		repositoryUrl := repositories.RepositoryData[i].RepositoryUrl
+		repositoryName := repositories.RepositoryData[i].RepositoryName
 
-	// Query String
-	// TODO: Export the GraphQL Query -> .env or separate config file.
-	queryString := fmt.Sprintf(`{
-		repository(name: "%s") {
-			defaultBranch {
-				target {
-					commit {
-						blob(path: "go.mod") {
-							content
+		// Query String
+		queryString := fmt.Sprintf(`{
+			repository(name: "%s") {
+				defaultBranch {
+					target {
+						commit {
+							blob(path: "go.mod") {
+								content
+							}
 						}
 					}
 				}
 			}
+		}`, repositoryUrl)
+
+		// Construct the Query
+		rawRequestBody := map[string]string{
+			"query": queryString,
 		}
-	}`, repositoryUrl)
 
-	// Construct the Query
-	rawRequestBody := map[string]string{
-		"query": queryString,
-	}
-
-	// Parse Body from Map to JSON
-	jsonRequestBody, err := json.Marshal(rawRequestBody)
-	utils.CheckErr(err)
-
-	// Convert the Body from JSON to Bytes
-	requestBodyInBytes := bytes.NewBuffer(jsonRequestBody)
-
-	// Craft a Request
-	request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, requestBodyInBytes)
-	request.Header.Set("Content-Type", "application/json")
-	utils.CheckErr(err)
-
-	// Execute Request
-	res, err := g.HttpClient.Do(request)
-	utils.CheckErr(err)
-
-	// Close the Body, after surrounding function returns.
-	defer res.Body.Close()
-
-	// Read all bytes from the response. (Empties the res.Body)
-	sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
-	utils.CheckErr(err)
-
-	// TODO: Move Parse String -> .env or separate config file
-	// Parse JSON with "https://github.com/buger/jsonparser"
-	outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
-
-	// Parse the libraries from the go.mod file and inner go.mod files of a project and save them to variables.
-	var (
-		libraries             []string
-		innerModFiles         []string
-		totalLibraryCodeLines int
-	)
-
-	// outerModFile as String is called often, so it is saved to a variable.
-	outerModFileString := outerModFile.String()
-
-	// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
-	if checkInnerModFiles(outerModFileString) {
-		// Parse the ending from URL.
-		owner, repo, err := parseRepositoryName(repositoryUrl)
+		// Parse Body from Map to JSON
+		jsonRequestBody, err := json.Marshal(rawRequestBody)
 		utils.CheckErr(err)
 
-		innerModFiles = parseInnerModFiles(outerModFileString, owner+"/"+repo)
-	}
+		// Convert the Body from JSON to Bytes
+		requestBodyInBytes := bytes.NewBuffer(jsonRequestBody)
 
-	// Parse the name of libraries from modfile to a slice.
-	libraries = parseLibrariesFromModFile(outerModFileString)
+		// Craft a Request
+		request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, requestBodyInBytes)
+		request.Header.Set("Content-Type", "application/json")
+		utils.CheckErr(err)
 
-	// If the go.mod file has "replace" - keyword, it has inner go.mod files,
-	// append libraries from inner go.mod files to the libraries slice.
-	if checkInnerModFiles(outerModFileString) {
-		// Parse the library names of the inner go.mod files, and append them to the libraries slice.
-		for i := 0; i < len(innerModFiles); i++ {
-			// Perform a GET request, to get the content of the inner modfile.
-			// Append the libraries from the inner modfile to the libraries slice.
-			libraries = append(libraries, parseLibrariesFromModFile(performGetRequest(innerModFiles[i]))...)
+		// Execute Request
+		res, err := g.HttpClient.Do(request)
+		utils.CheckErr(err)
+
+		// Close the Body, after surrounding function returns.
+		defer res.Body.Close()
+
+		// Read all bytes from the response. (Empties the res.Body)
+		sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
+		utils.CheckErr(err)
+
+		// TODO: Move Parse String -> .env or separate config file
+		// Parse JSON with "https://github.com/buger/jsonparser"
+		outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
+
+		// Parse the libraries from the go.mod file and inner go.mod files of a project and save them to variables.
+		var (
+			libraries             []string
+			innerModFiles         []string
+			totalLibraryCodeLines int
+		)
+
+		// outerModFile as String is called often, so it is saved to a variable.
+		outerModFileString := outerModFile.String()
+
+		// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
+		if checkInnerModFiles(outerModFileString) {
+			// Parse the ending from URL.
+			owner, repo, err := parseRepositoryName(repositoryUrl)
+			utils.CheckErr(err)
+
+			innerModFiles = parseInnerModFiles(outerModFileString, owner+"/"+repo)
 		}
-	}
 
-	// Remove duplicates from the libraries slice.
-	libraries = removeDuplicates(libraries)
+		// Parse the name of libraries from modfile to a slice.
+		libraries = parseLibrariesFromModFile(outerModFileString)
 
-	// TODO: Cache
-	// TODO: Optimizations: Small Repository Analysis took 28 seconds, how to make this faster (?)
+		// If the go.mod file has "replace" - keyword, it has inner go.mod files,
+		// append libraries from inner go.mod files to the libraries slice.
+		if checkInnerModFiles(outerModFileString) {
+			// Parse the library names of the inner go.mod files, and append them to the libraries slice.
+			for i := 0; i < len(innerModFiles); i++ {
+				// Perform a GET request, to get the content of the inner modfile.
+				// Append the libraries from the inner modfile to the libraries slice.
+				libraries = append(libraries, parseLibrariesFromModFile(performGetRequest(innerModFiles[i]))...)
+			}
+		}
 
-	// Extract this a Variable, so the len function doesn't calulate itself multiple times.
-	libCount := len(libraries)
+		// Remove duplicates from the libraries slice.
+		libraries = removeDuplicates(libraries)
 
-	// Change GOPATH to point to temporary directory.
-	tempGoPath := utils.GetTempGoPath()
-	goPath := utils.GetGoPath()
+		// TODO: Cache
+		// TODO: Optimizations: Small Repository Analysis took 28 seconds, how to make this faster (?)
 
-	os.Setenv("GOPATH", tempGoPath)
+		// Extract this a Variable, so the len function doesn't calulate itself multiple times.
+		libCount := len(libraries)
 
-	// Count the Code Lines for the Analyzed Library.
-	// Copying the code to the local system, and upgrading, is messing up the project.
-	// TODO: Now we can install to specific folder and calculate code lines I think - but now the
-	// Writing to database part is not working, thats going to be the next item to be worked on.
-	for i := 0; i < libCount; i++ {
-		// Construct the Local Path to the Library.
-		// Tested in Go 1.19.4
-		libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToDownloadFormat(libraries[i])
+		// Change GOPATH to point to temporary directory.
+		tempGoPath := utils.GetTempGoPath()
+		goPath := utils.GetGoPath()
 
-		// If the folder exists in the file system, it will not be deleted afterwards.
-		if folderExists(libPath) {
+		os.Setenv("GOPATH", tempGoPath)
+
+		// Count the Code Lines for the Analyzed Library.
+		// Copying the code to the local system, and upgrading, is messing up the project.
+		// TODO: Now we can install to specific folder and calculate code lines I think - but now the
+		// Writing to database part is not working, thats going to be the next item to be worked on.
+		for i := 0; i < libCount; i++ {
+			var libPath string
+			libStr := libraries[i]
+
+			fmt.Println("Is Vendored?: ", libStr, " ", isVendored(libStr))
+
+			// TODO: Check if the library is vendored, if it is, modify the libPath.
+			if isVendored(libStr) {
+				libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToVendorDownloadFormat(libStr)
+				fmt.Println(libPath)
+				// Library is not vendored, so the path doesn't need to be modified.
+			} else {
+				// Construct the Local Path to the Library.
+				// Tested in Go 1.19.4
+				libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToDownloadFormat(libStr)
+			}
+
+			fmt.Println("Lib Path: ", libPath)
+
+			// If the folder exists in the file system, it will not be deleted afterwards.
+			if folderExists(libPath) {
+				libraryUrl := parseUrlToDownloadFormat(libraries[i])
+				fmt.Println(libraryUrl)
+
+				// Change the GOPATH to point to the temporary directory.
+
+				// Download the Library to the File System.
+				output, err := runCommand("go", "get", "-d", "-v", libraryUrl)
+				if err != "" {
+					fmt.Println(err)
+				}
+
+				// Output of the Comment
+				fmt.Println(output)
+
+				// Calculate the amount of Code Lines.
+				// TODO: Testing -
+				lines := runGoCloc(libPath)
+				// lines, _ := linesOfCode(libPath)
+
+				// Append to the total variable.
+				totalLibraryCodeLines = totalLibraryCodeLines + lines
+			}
+
+			// Folder doesn't exist in the file system, and after it has been analyzed, it will be deleted.
 			libraryUrl := parseUrlToDownloadFormat(libraries[i])
 
-			// Change the GOPATH to point to the temporary directory.
-
-			// Download the Library to the File System.
-			output, err := runCommand("go", "get", "-d", "-v", libraryUrl)
-			if err != "" {
+			// Download the Library to the local File System.
+			output, errStr := runCommand("go", "get", "-d", "-v", libraryUrl)
+			if errStr != "" {
 				fmt.Println(err)
 			}
 
-			// Output of the Comment
+			// Output of the Comment.
 			fmt.Println(output)
 
-			// Calculate the amount of Code Lines.
+			// Calculate the Code Lines of the Library.
+			// lines := runGoCloc(libPath)
+			// TODO: Testing -
 			lines := runGoCloc(libPath)
+			// lines, _ := linesOfCode(libPath)
 
 			// Append to the total variable.
 			totalLibraryCodeLines = totalLibraryCodeLines + lines
+
+			fmt.Println("totalLibraryCodeLines: ", totalLibraryCodeLines)
 		}
 
-		// Folder doesn't exist in the file system, and after it has been analyzed, it will be deleted.
-		libraryUrl := parseUrlToDownloadFormat(libraries[i])
+		// Change GOPATH to point back to the original directory.
+		os.Setenv("GOPATH", goPath)
 
-		// Download the Library to the local File System.
-		output, errStr := runCommand("go", "get", "-d", "-v", libraryUrl)
-		if errStr != "" {
-			fmt.Println(err)
-		}
+		// This would be saved in the Database.
+		fmt.Println("This would be saved in the database, Total Library Code Lines: ", totalLibraryCodeLines)
 
-		// Output of the Comment.
-		fmt.Println(output)
-
-		// Calculate the Code Lines of the Library.
-		lines := runGoCloc(libPath)
-
-		// Append to the total variable.
-		totalLibraryCodeLines = totalLibraryCodeLines + lines
+		// Update this to the Database.
+		g.updateLibraryCodeLinesToDatabase(repositoryName, totalLibraryCodeLines)
 	}
-
-	// Change GOPATH to point back to the original directory.
-	os.Setenv("GOPATH", goPath)
-
-	// Update this to the Database.
-	g.updateLibraryCodeLinesToDatabase(repositoryName, totalLibraryCodeLines)
 }

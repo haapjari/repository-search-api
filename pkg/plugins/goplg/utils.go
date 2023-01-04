@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -108,6 +109,31 @@ func runGoCloc(path string) int {
 	utils.CheckErr(err)
 
 	return int(result.Total.Code)
+}
+
+// Alternative goCloc - command.
+func linesOfCode(dir string) (int, error) {
+	// Change to the specified directory
+	err := os.Chdir(dir)
+	if err != nil {
+		return 0, err
+	}
+
+	// Run the `gocloc` command and get the output
+	cmd := exec.Command("gocloc")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+
+	// Parse the output to get the total number of lines
+	linesStr := strings.TrimSpace(string(output))
+	lines, err := strconv.Atoi(linesStr)
+	if err != nil {
+		return 0, err
+	}
+
+	return lines, nil
 }
 
 // Wrapper for "exec/os" command execution.
@@ -315,4 +341,33 @@ func parseUrlToDownloadFormat(input string) string {
 	}
 	// Return the first part (the package name) followed by an @ symbol and the second part (the version)
 	return parts[0] + "@" + parts[1]
+}
+
+// Parse "github.com/Mholt/archiver/v3 v3.5.1" into the format "github.com/\!mholt/archiver/v3@v3.5.1"
+// Parse "github.com/MholtMholt/archiver/v3 v3.5.1" into the format "github.com/\!mholt\!mholt/archiver/v3@v3.5.1"
+// Parse "github.com/MholtMholtMholt/archiver/v3 v3.5.1" into the format "github.com/\!mholt\!mholt\!mholt/archiver/v3@v3.5.1"
+func parseUrlToVendorDownloadFormat(input string) string {
+	// Split the input string on the first space character
+	parts := strings.SplitN(input, " ", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+
+	// Split the package name on the '/' character and add the '!' prefix to each part
+	packageName := strings.Join(strings.Split(parts[0], "/"), "/!")
+
+	// Return the modified package name followed by an '@' symbol and the version
+	return packageName + "@" + parts[1]
+}
+
+// checks whether the input string, which represents a Go library, is vendored or not
+func isVendored(pkg string) bool {
+	// Get the vendoring status of the package using 'go list'
+	output, err := exec.Command("go", "list", "-f", "{{.Root}}", pkg).Output()
+	if err != nil {
+		return false
+	}
+
+	// If the output of the 'go list' command contains "vendor", the package is vendored
+	return strings.Contains(strings.TrimSpace(string(output)), "vendor")
 }
