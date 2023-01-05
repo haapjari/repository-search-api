@@ -115,27 +115,61 @@ func runGoCloc(path string) int {
 
 // Alternative goCloc - command.
 func linesOfCode(dir string) (int, error) {
-	// Change to the specified directory
-	err := os.Chdir(dir)
-	if err != nil {
-		return 0, err
-	}
-
-	// Run the `gocloc` command and get the output
-	cmd := exec.Command("gocloc")
+	// Run the `gocloc` command in the specified directory and get the output
+	cmd := exec.Command("gocloc", dir)
 	output, err := cmd.Output()
 	if err != nil {
 		return 0, err
 	}
 
-	// Parse the output to get the total number of lines
-	linesStr := strings.TrimSpace(string(output))
-	lines, err := strconv.Atoi(linesStr)
+	lines, err := parseTotalLines(string(output))
 	if err != nil {
 		return 0, err
 	}
 
 	return lines, nil
+}
+
+// Parse from the GoCloc response.
+func parseTotalLines(input string) (int, error) {
+	// Split the input string into lines
+	lines := strings.Split(input, "\n")
+
+	// Find the line containing the "TOTAL" row
+	var totalLine string
+	for _, line := range lines {
+		if strings.Contains(line, "TOTAL") {
+			totalLine = line
+			break
+		}
+	}
+
+	// If the "TOTAL" line was not found, return an error
+	if totalLine == "" {
+		return 0, fmt.Errorf("could not find TOTAL line in input")
+	}
+
+	// Split the "TOTAL" line into fields
+	fields := strings.Fields(totalLine)
+
+	// If the "TOTAL" line doesn't have enough fields, return an error
+	if len(fields) < 4 {
+		return 0, fmt.Errorf("invalid TOTAL line: not enough fields")
+	}
+
+	// Get the fourth field (the code column)
+	codeStr := fields[3]
+
+	// Remove any commas from the code column
+	codeStr = strings.Replace(codeStr, ",", "", -1)
+
+	// Parse the code column as an integer
+	code, err := strconv.Atoi(codeStr)
+	if err != nil {
+		return 0, err
+	}
+
+	return code, nil
 }
 
 // Wrapper for "exec/os" command execution.

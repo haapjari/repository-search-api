@@ -524,8 +524,8 @@ func (g *GoPlugin) enrichWithLibraryData() {
 
 				// Calculate the amount of Code Lines.
 				// TODO: Testing -
-				lines := runGoCloc(libPath)
-				// lines, _ := linesOfCode(libPath)
+				// lines := runGoCloc(libPath)
+				lines, _ := linesOfCode(libPath)
 
 				// Append to the total variable.
 				totalLibraryCodeLines = totalLibraryCodeLines + lines
@@ -546,8 +546,8 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			// Calculate the Code Lines of the Library.
 			// lines := runGoCloc(libPath)
 			// TODO: Testing -
-			lines := runGoCloc(libPath)
-			// lines, _ := linesOfCode(libPath)
+			// lines := runGoCloc(libPath)
+			lines, _ := linesOfCode(libPath)
 
 			// Append to the total variable.
 			totalLibraryCodeLines = totalLibraryCodeLines + lines
