@@ -12,10 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
 	"github.com/hhatto/gocloc"
+	JSONParser "github.com/tidwall/gjson"
 )
 
 func (g *GoPlugin) writeSourceGraphResponseToDatabase(length int, repositories []SourceGraphRepositoriesStruct) {
@@ -353,8 +355,18 @@ func parseUrlToVendorDownloadFormat(input string) string {
 		return ""
 	}
 
-	// Split the package name on the '/' character and add the '!' prefix to each part
-	packageName := strings.Join(strings.Split(parts[0], "/"), "/!")
+	// Split the package name on the '/' character
+	packageNameParts := strings.Split(parts[0], "/")
+
+	// Add the '\!' prefix and lowercase each part of the package name
+	for i, part := range packageNameParts {
+		if hasUppercase(part) {
+			packageNameParts[i] = "\\!" + strings.ToLower(part)
+		}
+	}
+
+	// Join the modified package name parts with '/' characters
+	packageName := strings.Join(packageNameParts, "/")
 
 	// Return the modified package name followed by an '@' symbol and the version
 	return packageName + "@" + parts[1]
@@ -372,4 +384,24 @@ func isVendored(pkg string) bool {
 
 	// If the output of the 'go list' command contains "vendor", the package is vendored
 	return strings.Contains(strings.TrimSpace(string(output)), "vendor")
+}
+
+// Check if the string has uppercase.
+func hasUppercase(s string) bool {
+	for _, r := range s {
+		if unicode.IsUpper(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// Export the JSON Parser to separate function.
+func extractDefaultBranchCommitBlobContent(sourceGraphResponseBody []byte) string {
+	outerModFile := JSONParser.Get(
+		string(sourceGraphResponseBody),
+		"data.repository.defaultBranch.target.commit.blob.content",
+	)
+
+	return outerModFile.String()
 }

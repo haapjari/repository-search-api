@@ -15,7 +15,6 @@ import (
 
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
-	JSONParser "github.com/tidwall/gjson"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -59,13 +58,13 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 
 // Fetch Repositories and Enrich the Repositories with Metadata.
 func (g *GoPlugin) GetRepositoryMetadata(c int) {
-	g.fetchRepositories(c)
-	g.deleteDuplicateRepositories()
-	g.enrichWithMetadata()
+	//	g.fetchRepositories(c)
+	//g.deleteDuplicateRepositories()
+	//g.enrichWithMetadata()
 
-	go func() {
-		g.calculateSizeOfPrimaryRepositories()
-	}()
+	//go func() {
+	//g.calculateSizeOfPrimaryRepositories()
+	//}()
 
 	g.enrichWithLibraryData() // TODO
 }
@@ -212,8 +211,14 @@ func (g *GoPlugin) updateLibraryCodeLinesToDatabase(name string, lines int) {
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
 // parses the repository location to the database table.
 func (g *GoPlugin) fetchRepositories(count int) {
-	// TODO: Export this as a environment or configuration value.
-	queryStr := "{search(query:\"lang:go +  AND select:repo AND repohasfile:go.mod AND count:" + strconv.Itoa(count) + "\", version:V2){results{repositories{name}}}}"
+	queryStr := `{
+		search(query: "lang:go + AND select:repo AND repohasfile:go.mod AND count:` + strconv.Itoa(count) + `", version:V2) { results {
+				repositories {
+					name
+				}
+			}
+		}
+	}`
 
 	rawReqBody := map[string]string{
 		"query": queryStr,
@@ -384,7 +389,6 @@ func (g *GoPlugin) enrichWithLibraryData() {
 	repositoriesCount := len(repositories.RepositoryData)
 
 	for i := 0; i < repositoriesCount; i++ {
-		// TODO: Instead of using the hardcoded value - refactor to use loop.
 		repositoryUrl := repositories.RepositoryData[i].RepositoryUrl
 		repositoryName := repositories.RepositoryData[i].RepositoryName
 
@@ -433,7 +437,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 
 		// TODO: Move Parse String -> .env or separate config file
 		// Parse JSON with "https://github.com/buger/jsonparser"
-		outerModFile := JSONParser.Get(string(sourceGraphResponseBody), "data.repository.defaultBranch.target.commit.blob.content")
+		outerModFile := extractDefaultBranchCommitBlobContent(sourceGraphResponseBody)
 
 		// Parse the libraries from the go.mod file and inner go.mod files of a project and save them to variables.
 		var (
@@ -442,24 +446,21 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			totalLibraryCodeLines int
 		)
 
-		// outerModFile as String is called often, so it is saved to a variable.
-		outerModFileString := outerModFile.String()
-
 		// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
-		if checkInnerModFiles(outerModFileString) {
+		if checkInnerModFiles(outerModFile) {
 			// Parse the ending from URL.
 			owner, repo, err := parseRepositoryName(repositoryUrl)
 			utils.CheckErr(err)
 
-			innerModFiles = parseInnerModFiles(outerModFileString, owner+"/"+repo)
+			innerModFiles = parseInnerModFiles(outerModFile, owner+"/"+repo)
 		}
 
 		// Parse the name of libraries from modfile to a slice.
-		libraries = parseLibrariesFromModFile(outerModFileString)
+		libraries = parseLibrariesFromModFile(outerModFile)
 
 		// If the go.mod file has "replace" - keyword, it has inner go.mod files,
 		// append libraries from inner go.mod files to the libraries slice.
-		if checkInnerModFiles(outerModFileString) {
+		if checkInnerModFiles(outerModFile) {
 			// Parse the library names of the inner go.mod files, and append them to the libraries slice.
 			for i := 0; i < len(innerModFiles); i++ {
 				// Perform a GET request, to get the content of the inner modfile.
@@ -491,14 +492,11 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			var libPath string
 			libStr := libraries[i]
 
-			fmt.Println("Is Vendored?: ", libStr, " ", isVendored(libStr))
-
 			// TODO: Check if the library is vendored, if it is, modify the libPath.
 			// isVendored is not working properly, the input:
 			// github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 should produce true, but its producing false
-			if isVendored(libStr) {
+			if hasUppercase(libStr) {
 				libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToVendorDownloadFormat(libStr)
-				fmt.Println(libPath)
 				// Library is not vendored, so the path doesn't need to be modified.
 			} else {
 				// Construct the Local Path to the Library.
