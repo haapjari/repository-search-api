@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"unicode"
@@ -97,7 +96,7 @@ func performGetRequest(url string) string {
 
 // Calculates the lines of code using https://github.com/hhatto/gocloc
 // in the path provided and return the value.
-func runGoCloc(path string) int {
+func runGocloc(path string) int {
 	languages := gocloc.NewDefinedLanguages()
 	options := gocloc.NewClocOptions()
 
@@ -111,65 +110,6 @@ func runGoCloc(path string) int {
 	utils.CheckErr(err)
 
 	return int(result.Total.Code)
-}
-
-// Alternative goCloc - command.
-func linesOfCode(dir string) (int, error) {
-	// Run the `gocloc` command in the specified directory and get the output
-	cmd := exec.Command("gocloc", dir)
-	output, err := cmd.Output()
-	if err != nil {
-		return 0, err
-	}
-
-	lines, err := parseTotalLines(string(output))
-	if err != nil {
-		return 0, err
-	}
-
-	return lines, nil
-}
-
-// Parse from the GoCloc response.
-func parseTotalLines(input string) (int, error) {
-	// Split the input string into lines
-	lines := strings.Split(input, "\n")
-
-	// Find the line containing the "TOTAL" row
-	var totalLine string
-	for _, line := range lines {
-		if strings.Contains(line, "TOTAL") {
-			totalLine = line
-			break
-		}
-	}
-
-	// If the "TOTAL" line was not found, return an error
-	if totalLine == "" {
-		return 0, fmt.Errorf("could not find TOTAL line in input")
-	}
-
-	// Split the "TOTAL" line into fields
-	fields := strings.Fields(totalLine)
-
-	// If the "TOTAL" line doesn't have enough fields, return an error
-	if len(fields) < 4 {
-		return 0, fmt.Errorf("invalid TOTAL line: not enough fields")
-	}
-
-	// Get the fourth field (the code column)
-	codeStr := fields[3]
-
-	// Remove any commas from the code column
-	codeStr = strings.Replace(codeStr, ",", "", -1)
-
-	// Parse the code column as an integer
-	code, err := strconv.Atoi(codeStr)
-	if err != nil {
-		return 0, err
-	}
-
-	return code, nil
 }
 
 // Wrapper for "exec/os" command execution.
@@ -238,35 +178,6 @@ func copyAndCapture(w io.Writer, r io.Reader) ([]byte, error) {
 	}
 }
 
-// Check if the sliceA contain all the elements of sliceB
-func checkIfSliceContainsAllElements(sliceA []string, sliceB []string) bool {
-	// Check if sliceA contains all the elements of sliceB
-	for _, elemB := range sliceB {
-		found := false
-
-		for _, elemA := range sliceA {
-			if elemA == elemB {
-				found = true
-
-				break
-			}
-		}
-
-		if !found {
-			return false
-		}
-	}
-
-	return true
-}
-
-// Print a slice of strings.
-func printStringSlice(slice []string) {
-	for _, elem := range slice {
-		fmt.Println(elem)
-	}
-}
-
 // removeDuplicates removes duplicates from a slice of strings
 func removeDuplicates(slice []string) []string {
 	// Create a map to keep track of the elements that have already been seen
@@ -286,36 +197,6 @@ func removeDuplicates(slice []string) []string {
 	}
 
 	return result
-}
-
-// countDuplicates counts the number of duplicates in a slice of strings
-func countDuplicates(slice []string) int {
-	// Initialize a map to hold the counts for each string
-	counts := make(map[string]int)
-
-	// Iterate over the slice
-	for _, s := range slice {
-		// If the string is already in the map, increment its count
-		if _, ok := counts[s]; ok {
-			counts[s]++
-		} else {
-			// Otherwise, set its count to 1
-			counts[s] = 1
-		}
-	}
-
-	// Initialize a variable to hold the total number of duplicates
-	numDuplicates := 0
-
-	// Iterate over the map of counts
-	for _, count := range counts {
-		// If the count is greater than 1, add it to the total number of duplicates
-		if count > 1 {
-			numDuplicates += count - 1
-		}
-	}
-
-	return numDuplicates
 }
 
 // Parse repository name from url.
@@ -379,10 +260,17 @@ func parseUrlToDownloadFormat(input string) string {
 	return parts[0] + "@" + parts[1]
 }
 
-// Parse "github.com/Mholt/archiver/v3 v3.5.1" into the format "github.com/\!mholt/archiver/v3@v3.5.1"
-// Parse "github.com/MholtMholt/archiver/v3 v3.5.1" into the format "github.com/\!mholt\!mholt/archiver/v3@v3.5.1"
-// Parse "github.com/MholtMholtMholt/archiver/v3 v3.5.1" into the format "github.com/\!mholt\!mholt\!mholt/archiver/v3@v3.5.1"
-func parseUrlToVendorDownloadFormat(input string) string {
+// Check if the string has uppercase.
+func hasUppercase(s string) bool {
+	for _, r := range s {
+		if unicode.IsUpper(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseGoLibraryUrl(input string) string {
 	// Split the input string on the first space character
 	parts := strings.SplitN(input, " ", 2)
 	if len(parts) != 2 {
@@ -392,11 +280,16 @@ func parseUrlToVendorDownloadFormat(input string) string {
 	// Split the package name on the '/' character
 	packageNameParts := strings.Split(parts[0], "/")
 
-	// Add the '\!' prefix and lowercase each part of the package name
+	// Add the '!' prefix and lowercase each part of the package name
 	for i, part := range packageNameParts {
-		if hasUppercase(part) {
-			packageNameParts[i] = "\\!" + strings.ToLower(part)
+		// Split the part on each uppercase character
+		subParts := strings.Split(part, "")
+		for j, subPart := range subParts {
+			if hasUppercase(subPart) {
+				subParts[j] = "!" + strings.ToLower(subPart)
+			}
 		}
+		packageNameParts[i] = strings.Join(subParts, "")
 	}
 
 	// Join the modified package name parts with '/' characters
@@ -404,30 +297,6 @@ func parseUrlToVendorDownloadFormat(input string) string {
 
 	// Return the modified package name followed by an '@' symbol and the version
 	return packageName + "@" + parts[1]
-}
-
-// checks whether the input string, which represents a Go library, is vendored or not
-func isVendored(pkg string) bool {
-	// Get the vendoring status of the package using 'go list'
-	output, err := exec.Command("go", "list", "-f", "{{.Root}}", pkg).Output()
-	if err != nil {
-		return false
-	}
-
-	fmt.Println("What odes the command print ", string(output))
-
-	// If the output of the 'go list' command contains "vendor", the package is vendored
-	return strings.Contains(strings.TrimSpace(string(output)), "vendor")
-}
-
-// Check if the string has uppercase.
-func hasUppercase(s string) bool {
-	for _, r := range s {
-		if unicode.IsUpper(r) {
-			return true
-		}
-	}
-	return false
 }
 
 // Export the JSON Parser to separate function.

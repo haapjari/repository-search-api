@@ -58,26 +58,23 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 
 // Fetch Repositories and Enrich the Repositories with Metadata.
 func (g *GoPlugin) GetRepositoryMetadata(c int) {
-	//	g.fetchRepositories(c)
-	//g.deleteDuplicateRepositories()
-	//g.enrichWithMetadata()
+	g.fetchRepositories(c)
+	g.deleteDuplicateRepositories()
+	g.enrichWithMetadata()
 
-	//go func() {
-	//g.calculateSizeOfPrimaryRepositories()
-	//}()
+	go func() {
+		g.calculateSizeOfPrimaryRepositories()
+	}()
 
-	g.enrichWithLibraryData() // TODO
+	g.enrichWithLibraryData()
 }
 
 // Delete duplicate repositories.
 func (g *GoPlugin) deleteDuplicateRepositories() {
-	// get all repositories
 	repositories := g.getAllRepositories()
 
-	// slice of duplicate repositories
 	duplicateRepositories := findDuplicateRepositoryEntries(repositories.RepositoryData)
 
-	// amount of duplicates
 	amount := len(duplicateRepositories)
 
 	for i := 0; i < amount; i++ {
@@ -140,7 +137,7 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 				fmt.Println(output)
 
 				// Run "gocloc" and calculate the amount of lines.
-				lines := runGoCloc("tmp/" + j.name)
+				lines := runGocloc("tmp/" + j.name)
 
 				// Update the database.
 				g.updatePrimaryCodeLinesToDatabase(j.name, lines)
@@ -381,7 +378,6 @@ func (g *GoPlugin) enrichWithMetadata() {
 
 // TODO
 // Enrich the values in the repositories -table with the codebase sizes of the libraries, and append them to the database.
-// TODO: Some of the libraries are vendored, and before analyzing a library, we should check if it is vendored or not.
 // Before running the gocloc, the vendor means, that the local path is different.
 func (g *GoPlugin) enrichWithLibraryData() {
 	// Query all the repositories from the database.
@@ -435,7 +431,6 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
 		utils.CheckErr(err)
 
-		// TODO: Move Parse String -> .env or separate config file
 		// Parse JSON with "https://github.com/buger/jsonparser"
 		outerModFile := extractDefaultBranchCommitBlobContent(sourceGraphResponseBody)
 
@@ -486,32 +481,15 @@ func (g *GoPlugin) enrichWithLibraryData() {
 
 		// Count the Code Lines for the Analyzed Library.
 		// Copying the code to the local system, and upgrading, is messing up the project.
-		// TODO: Now we can install to specific folder and calculate code lines I think - but now the
-		// Writing to database part is not working, thats going to be the next item to be worked on.
 		for i := 0; i < libCount; i++ {
 			var libPath string
 			libStr := libraries[i]
 
-			// TODO: Check if the library is vendored, if it is, modify the libPath.
-			// isVendored is not working properly, the input:
-			// github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 should produce true, but its producing false
-			if hasUppercase(libStr) {
-				libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToVendorDownloadFormat(libStr)
-				// Library is not vendored, so the path doesn't need to be modified.
-			} else {
-				// Construct the Local Path to the Library.
-				// Tested in Go 1.19.4
-				libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseUrlToDownloadFormat(libStr)
-			}
-
-			fmt.Println("Lib Path: ", libPath)
+			libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libStr)
 
 			// If the folder exists in the file system, it will not be deleted afterwards.
 			if folderExists(libPath) {
 				libraryUrl := parseUrlToDownloadFormat(libraries[i])
-				fmt.Println(libraryUrl)
-
-				// Change the GOPATH to point to the temporary directory.
 
 				// Download the Library to the File System.
 				output, err := runCommand("go", "get", "-d", "-v", libraryUrl)
@@ -523,9 +501,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 				fmt.Println(output)
 
 				// Calculate the amount of Code Lines.
-				// TODO: Testing -
-				// lines := runGoCloc(libPath)
-				lines, _ := linesOfCode(libPath)
+				lines := runGocloc(libPath)
 
 				// Append to the total variable.
 				totalLibraryCodeLines = totalLibraryCodeLines + lines
@@ -544,22 +520,14 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			fmt.Println(output)
 
 			// Calculate the Code Lines of the Library.
-			// lines := runGoCloc(libPath)
-			// TODO: Testing -
-			// lines := runGoCloc(libPath)
-			lines, _ := linesOfCode(libPath)
+			lines := runGocloc(libPath)
 
 			// Append to the total variable.
 			totalLibraryCodeLines = totalLibraryCodeLines + lines
-
-			fmt.Println("totalLibraryCodeLines: ", totalLibraryCodeLines)
 		}
 
 		// Change GOPATH to point back to the original directory.
 		os.Setenv("GOPATH", goPath)
-
-		// This would be saved in the Database.
-		fmt.Println("This would be saved in the database, Total Library Code Lines: ", totalLibraryCodeLines)
 
 		// Update this to the Database.
 		g.updateLibraryCodeLinesToDatabase(repositoryName, totalLibraryCodeLines)
