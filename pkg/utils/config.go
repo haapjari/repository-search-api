@@ -15,6 +15,13 @@ func GetRepositoryApiBaseUrl() string {
 	return fmt.Sprint(viper.Get("REPOSITORY_API_BASEURL"))
 }
 
+func GetLocalenv() string {
+	viper.SetConfigFile(".env")
+	viper.ReadInConfig()
+
+	return fmt.Sprint(viper.Get("LOCAL_ENV"))
+}
+
 func GetDatabaseUser() interface{} {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()
