@@ -62,11 +62,17 @@ func (g *GoPlugin) GetRepositoryMetadata(c int) {
 	g.deleteDuplicateRepositories()
 	g.enrichWithMetadata()
 
-	go func() {
-		g.calculateSizeOfPrimaryRepositories()
-	}()
+	// TODO: Alot of requests seem to result primary language repositories, which arent Go.
+	// Those have to be pruned out.
 
-	g.enrichWithLibraryData()
+	// TODO: Optimizations.
+	// There can be goroutine optimizations done in this function.
+	g.calcRepoSize()
+
+	// TODO: Optimizations.
+	g.calcReposLibSizes()
+
+	// g.enrichWithLibraryData()
 }
 
 // Delete duplicate repositories.
@@ -94,12 +100,9 @@ func (g *GoPlugin) deleteDuplicateRepositories() {
 }
 
 // Enriches the metadata with "Original Codebase Size" variables.
-func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
+func (g *GoPlugin) calcRepoSize() {
 	// fetch all the repositories from the database.
 	repositories := g.getAllRepositories()
-
-	var wg sync.WaitGroup
-	remainingJobs := len(repositories.RepositoryData)
 
 	// Check if the "tmp" directory exists.
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
@@ -109,68 +112,38 @@ func (g *GoPlugin) calculateSizeOfPrimaryRepositories() {
 		}
 	}
 
-	// calculate the amount of repositories, and save it to variable.
-	len := len(repositories.RepositoryData)
-
 	// append the https:// and .git prefix and postfix the RepositoryUrl variables.
-	for i := 0; i < len; i++ {
+	for i := 0; i < len(repositories.RepositoryData); i++ {
 		repositories.RepositoryData[i].RepositoryUrl = "https://" + repositories.RepositoryData[i].RepositoryUrl + ".git"
 	}
 
-	// Create a channel to send work to the goroutines.
-	jobs := make(chan struct{ url, name string })
-
-	// Create a fixed number of goroutines (e.g., 10).
-	const numWorkers = 20
-
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			for j := range jobs {
-				// Clone the repository into a temporary directory.
-				// Attempt to clone "master" branch.
-				output, err := runCommand("git", "clone", "--depth", "1", j.url, "tmp"+"/"+j.name)
-				if err != "" {
-					fmt.Println(err)
-				}
-
-				fmt.Println(output)
-
-				// Run "gocloc" and calculate the amount of lines.
-				lines := runGocloc("tmp/" + j.name)
-
-				// Update the database.
-				g.updatePrimaryCodeLinesToDatabase(j.name, lines)
-
-				// Delete the repository.
-				output, err = runCommand("rm", "-rf", "tmp"+"/"+j.name)
-				fmt.Println(output)
-				if err != "" {
-					fmt.Println(err)
-				}
-
-				// Decrement the remaining jobs counter.
-				remainingJobs--
-				fmt.Println("Remaining Jobs: ", remainingJobs)
-			}
-		}()
-	}
-
-	// Send work to the goroutines.
+	// iterate through all repositories
 	for _, repo := range repositories.RepositoryData {
 		// If the OriginalCodebaseSize variable is empty, analyze the repository.
 		// Otherwise skip the repository, in order to avoid double analysis.
 		if repo.OriginalCodebaseSize == "" {
-			// Send work to the goroutines.
-			jobs <- struct{ url, name string }{repo.RepositoryUrl, repo.RepositoryName}
+			// Clone the repository into a temporary directory.
+			// Attempt to clone "master" branch.
+			output, err := runCommand("git", "clone", "--depth", "1", repo.RepositoryUrl, "tmp"+"/"+repo.RepositoryName)
+			if err != "" {
+				fmt.Println(err)
+			}
+			fmt.Println(output)
+
+			// Run "gocloc" and calculate the amount of lines.
+			lines := runGocloc("tmp/" + repo.RepositoryName)
+
+			// Update the database.
+			g.updatePrimaryCodeLinesToDatabase(repo.RepositoryName, lines)
+
+			// Delete the repository.
+			output, err = runCommand("rm", "-rf", "tmp"+"/"+repo.RepositoryName)
+			fmt.Println(output)
+			if err != "" {
+				fmt.Println(err)
+			}
 		}
 	}
-
-	// Close the jobs channel to signal the goroutines to stop.
-	close(jobs)
-
-	// Wait for all the goroutines to finish.
-	wg.Wait()
 }
 
 func (g *GoPlugin) updatePrimaryCodeLinesToDatabase(name string, lines int) {
@@ -379,23 +352,36 @@ func (g *GoPlugin) enrichWithMetadata() {
 // TODO
 // Enrich the values in the repositories -table with the codebase sizes of the libraries, and append them to the database.
 // Before running the gocloc, the vendor means, that the local path is different.
-func (g *GoPlugin) enrichWithLibraryData() {
-	// Query all the repositories from the database.
-	repositories := g.getAllRepositories()
-	repositoriesCount := len(repositories.RepositoryData)
+func (g *GoPlugin) calcReposLibSizes() {
+	repos := g.getAllRepositories()
+	repoCount := len(repos.RepositoryData)
 
 	// TODO: Refactor this single loop to three different loops.
 	// Current Benchmark is 2 m 30 s for one repository.
 	// First loop saves the "repoName" - "libraries" to a map.
 	// Second loop goes through the libraries and downloads the them to locally.
-	// Third loop runs the gocloc commands and saves them to the database.
+	// Third loop runs the gocloc commands.
+	// Fourth loop saves the values to the database.
 
-	for i := 0; i < repositoriesCount; i++ {
-		repoUrl := repositories.RepositoryData[i].RepositoryUrl
-		repoName := repositories.RepositoryData[i].RepositoryName
+	libs := make(map[string][]string)
 
-		// Query String
-		queryString := fmt.Sprintf(`{
+	var wg sync.WaitGroup
+
+	// Create a semaphore with a capacity of 2
+	semaphore := make(chan struct{}, 50)
+
+	for i := 0; i < repoCount; i++ {
+		// Acquire a token from the semaphore
+		wg.Add(1)
+		semaphore <- struct{}{}
+
+		// Launch a goroutine
+		go func(i int) {
+			repoUrl := repos.RepositoryData[i].RepositoryUrl
+			repoName := repos.RepositoryData[i].RepositoryName
+
+			// Query String
+			queryString := fmt.Sprintf(`{
 			repository(name: "%s") {
 				defaultBranch {
 					target {
@@ -409,72 +395,90 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			}
 		}`, repoUrl)
 
-		// Construct the Query
-		rawRequestBody := map[string]string{
-			"query": queryString,
-		}
+			// Construct the Query
+			rawRequestBody := map[string]string{
+				"query": queryString,
+			}
 
-		// Parse Body from Map to JSON
-		jsonRequestBody, err := json.Marshal(rawRequestBody)
-		utils.CheckErr(err)
-
-		// Convert the Body from JSON to Bytes
-		requestBodyInBytes := bytes.NewBuffer(jsonRequestBody)
-
-		// Craft a Request
-		request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, requestBodyInBytes)
-		request.Header.Set("Content-Type", "application/json")
-		utils.CheckErr(err)
-
-		// Execute Request
-		res, err := g.HttpClient.Do(request)
-		utils.CheckErr(err)
-
-		// Close the Body, after surrounding function returns.
-		defer res.Body.Close()
-
-		// Read all bytes from the response. (Empties the res.Body)
-		sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
-		utils.CheckErr(err)
-
-		// Parse JSON with "https://github.com/buger/jsonparser"
-		outerModFile := extractDefaultBranchCommitBlobContent(sourceGraphResponseBody)
-
-		// Parse the libraries from the go.mod file and inner go.mod files of a project and save them to variables.
-		var (
-			libraries             []string
-			innerModFiles         []string
-			totalLibraryCodeLines int
-		)
-
-		// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
-		if checkInnerModFiles(outerModFile) {
-			// Parse the ending from URL.
-			owner, repo, err := parseRepositoryName(repoUrl)
+			// Parse Body from Map to JSON
+			jsonRequestBody, err := json.Marshal(rawRequestBody)
 			utils.CheckErr(err)
 
-			innerModFiles = parseInnerModFiles(outerModFile, owner+"/"+repo)
-		}
+			// Convert the Body from JSON to Bytes
+			requestBodyInBytes := bytes.NewBuffer(jsonRequestBody)
 
-		// Parse the name of libraries from modfile to a slice.
-		libraries = parseLibrariesFromModFile(outerModFile)
+			// Craft a Request
+			request, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, requestBodyInBytes)
+			request.Header.Set("Content-Type", "application/json")
+			utils.CheckErr(err)
 
-		// If the go.mod file has "replace" - keyword, it has inner go.mod files,
-		// append libraries from inner go.mod files to the libraries slice.
-		if checkInnerModFiles(outerModFile) {
-			// Parse the library names of the inner go.mod files, and append them to the libraries slice.
-			for i := 0; i < len(innerModFiles); i++ {
-				// Perform a GET request, to get the content of the inner modfile.
-				// Append the libraries from the inner modfile to the libraries slice.
-				libraries = append(libraries, parseLibrariesFromModFile(performGetRequest(innerModFiles[i]))...)
+			// Execute Request
+			res, err := g.HttpClient.Do(request)
+			utils.CheckErr(err)
+
+			// Close the Body, after surrounding function returns.
+			defer res.Body.Close()
+
+			// Read all bytes from the response. (Empties the res.Body)
+			sourceGraphResponseBody, err := ioutil.ReadAll(res.Body)
+			utils.CheckErr(err)
+
+			// Parse JSON with "https://github.com/buger/jsonparser"
+			outerModFile := extractDefaultBranchCommitBlobContent(sourceGraphResponseBody)
+
+			// Parse the libraries from the go.mod file and inner go.mod files of a project and save them to variables.
+			var (
+				libraries     []string
+				innerModFiles []string
+			)
+
+			// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
+			if checkInnerModFiles(outerModFile) {
+				// Parse the ending from URL.
+				owner, repo, err := parseRepositoryName(repoUrl)
+				utils.CheckErr(err)
+
+				innerModFiles = parseInnerModFiles(outerModFile, owner+"/"+repo)
 			}
-		}
 
-		// Remove duplicates from the libraries slice.
-		libraries = removeDuplicates(libraries)
+			// Parse the name of libraries from modfile to a slice.
+			libraries = parseLibrariesFromModFile(outerModFile)
+
+			// If the go.mod file has "replace" - keyword, it has inner go.mod files,
+			// append libraries from inner go.mod files to the libraries slice.
+			if checkInnerModFiles(outerModFile) {
+				// Parse the library names of the inner go.mod files, and append them to the libraries slice.
+				for i := 0; i < len(innerModFiles); i++ {
+					// Perform a GET request, to get the content of the inner modfile.
+					// Append the libraries from the inner modfile to the libraries slice.
+					libraries = append(libraries, parseLibrariesFromModFile(performGetRequest(innerModFiles[i]))...)
+				}
+			}
+
+			// Remove duplicates from the libraries slice.
+			libraries = removeDuplicates(libraries)
+
+			// Append all the values to the map.
+			libs[repoName] = append(libs[repoName], libraries...)
+
+			// Release the token
+			<-semaphore
+
+			// Tell the WaitGroup that we're done
+			wg.Done()
+		}(i)
+	}
+
+	// Wait for all the goroutines to finish
+	wg.Wait()
+
+	// Loop through the repositories, and download the libraries to the local machine.
+	// TODO
+	for i := 0; i < repoCount; i++ {
+		repoName := repos.RepositoryData[i].RepositoryName
 
 		// Extract this a Variable, so the len function doesn't calulate itself multiple times.
-		libCount := len(libraries)
+		libCount := len(libs[repoName])
 
 		// Read GOPATH variables from the environment.
 		tempGoPath := utils.GetTempGoPath()
@@ -486,10 +490,12 @@ func (g *GoPlugin) enrichWithLibraryData() {
 
 		// Download the Libraries to the File System.
 		// Run this as a single threaded for -loop, since go get can't be ran in parallel.
-		// TODO: Can this be optimized (?)
+		// TODO: Can this be optimized, current benchmark for single repo: 2m 45s
 		for i := 0; i < libCount; i++ {
-			libUrl := parseUrlToDownloadFormat(libraries[i])
+			libUrl := parseUrlToDownloadFormat(libs[repoName][i])
 
+			// TODO: Can this be optimized (?)
+			// Current benchmark is 2m 45s
 			output, err := runCommand("go", "get", "-d", "-v", libUrl)
 			if err != "" {
 				fmt.Println(err)
@@ -498,43 +504,13 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			fmt.Println(output)
 		}
 
-		// Create a semaphore with a capacity of 50.
-		semaphore := make(chan struct{}, 50)
-
-		var wg sync.WaitGroup
-
-		// Run "gocloc" - commands in parallel.
-		for i := 0; i < libCount; i++ {
-			libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libraries[i])
-			wg.Add(1)
-
-			go func(i int) {
-				// Reseve a slot in the semaphore.
-				semaphore <- struct{}{}
-
-				// Calculate the amount of Code Lines.
-				lines := runGocloc(libPath)
-
-				// Append to the total variable.
-				totalLibraryCodeLines += lines
-
-				// Release the slot in the semaphore.
-				<-semaphore
-
-				// Signal that this goroutine is done.
-				wg.Done()
-			}(i)
-
-			// TODO: Prune the tmp/ folder.
-		}
-
-		// Wait for all goroutines to finish.
-		wg.Wait()
-
 		// Change GOPATH to point back to the original directory.
 		os.Setenv("GOPATH", goPath)
-
-		// Update this to the Database.
-		g.updateLibraryCodeLinesToDatabase(repoName, totalLibraryCodeLines)
 	}
+
+	// TODO: Run the goclocs next
+	// for i := 0; i < repoCount; i++ {
+	// }
+
+	// TODO: Run the database saves next.
 }
