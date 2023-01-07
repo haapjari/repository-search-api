@@ -474,67 +474,57 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		tempGoPath := utils.GetTempGoPath()
 		goPath := utils.GetGoPath()
 
-		// Cache for the analyzed libraries.
-		cache := make(map[string]int)
-
+		// Download the libraries to the file system.
 		// Change GOPATH to point to temporary directory.
 		os.Setenv("GOPATH", tempGoPath)
 
-		// TODO: Optimization (?)
-		// Run the go get's on separate loop, which will not be ran in routines.
-		// Run gocloc's on the separate loop, which will be ran in routines.
-		// TODO: Is the results correct (?)
+		// Download the Libraries to the File System.
+		// Run this as a single threaded for -loop, since go get can't be ran in parallel.
+		// TODO: Can this be optimized (?)
 		for i := 0; i < libCount; i++ {
-			libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libraries[i])
 			libUrl := parseUrlToDownloadFormat(libraries[i])
 
-			// Check, if the library is already analyzed.
-			if lines, ok := cache[libPath]; ok {
-				totalLibraryCodeLines += lines
-			} else {
-				// Library is not analyzed, analyze it.
-				if folderExists(libPath) {
-					// Download the Library to the File System.
-					// TODO: Could this be optimized (?)
-					output, err := runCommand("go", "get", "-d", "-v", libUrl)
-					if err != "" {
-						fmt.Println(err)
-					}
-
-					fmt.Println(output)
-
-					// Calculate the amount of Code Lines.
-					lines := runGocloc(libPath)
-
-					// Add the result to the cache
-					cache[libPath] = lines
-
-					// Append to the total variable.
-					totalLibraryCodeLines += lines
-				} else {
-					// Download the Library to the local File System.
-					// TODO: Could this be optimized (?)
-					output, errStr := runCommand("go", "get", "-d", "-v", libUrl)
-					if errStr != "" {
-						fmt.Println(err)
-					}
-
-					fmt.Println(output)
-
-					// Calculate the Code Lines of the Library.
-					lines := runGocloc(libPath)
-
-					// Add the result to the cache
-					cache[libPath] = lines
-
-					// Append to the total variable.
-					totalLibraryCodeLines += lines
-
-					// Folder doesn't exist in the file system, and after it has been analyzed, it will be deleted.
-					// TODO: Remove the Library from the File System.
-				}
+			output, err := runCommand("go", "get", "-d", "-v", libUrl)
+			if err != "" {
+				fmt.Println(err)
 			}
+
+			fmt.Println(output)
 		}
+
+		// Create a semaphore with a capacity of 3.
+		semaphore := make(chan struct{}, 50)
+
+		// Create a wait group with a count of 10.
+		var wg sync.WaitGroup
+
+		// Run "gocloc" - commands in parallel.
+		for i := 0; i < libCount; i++ {
+			libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libraries[i])
+			wg.Add(1)
+
+			go func(i int) {
+				// Acquire a slot in the semaphore.
+				semaphore <- struct{}{}
+
+				// Calculate the amount of Code Lines.
+				lines := runGocloc(libPath)
+
+				// Append to the total variable.
+				totalLibraryCodeLines += lines
+
+				// Release the slot in the semaphore.
+				<-semaphore
+
+				// Signal that this goroutine is done.
+				wg.Done()
+			}(i)
+
+			// TODO: Prune the tmp/ folder.
+		}
+
+		// Wait for all goroutines to finish.
+		wg.Wait()
 
 		// Change GOPATH to point back to the original directory.
 		os.Setenv("GOPATH", goPath)
