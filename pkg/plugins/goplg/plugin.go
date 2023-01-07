@@ -467,63 +467,73 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		// Remove duplicates from the libraries slice.
 		libraries = removeDuplicates(libraries)
 
-		// TODO: Cache
-		// TODO: Optimizations: Small Repository Analysis took 28 seconds, how to make this faster (?)
-
 		// Extract this a Variable, so the len function doesn't calulate itself multiple times.
 		libCount := len(libraries)
 
-		// Change GOPATH to point to temporary directory.
+		// Read GOPATH variables from the environment.
 		tempGoPath := utils.GetTempGoPath()
 		goPath := utils.GetGoPath()
 
+		// Cache for the analyzed libraries.
+		cache := make(map[string]int)
+
+		// Change GOPATH to point to temporary directory.
 		os.Setenv("GOPATH", tempGoPath)
 
-		// Count the Code Lines for the Analyzed Library.
-		// Copying the code to the local system, and upgrading, is messing up the project.
+		// TODO: Optimization (?)
+		// Run the go get's on separate loop, which will not be ran in routines.
+		// Run gocloc's on the separate loop, which will be ran in routines.
+		// TODO: Is the results correct (?)
 		for i := 0; i < libCount; i++ {
-			var libPath string
-			libStr := libraries[i]
+			libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libraries[i])
+			libUrl := parseUrlToDownloadFormat(libraries[i])
 
-			libPath = utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libStr)
+			// Check, if the library is already analyzed.
+			if lines, ok := cache[libPath]; ok {
+				totalLibraryCodeLines += lines
+			} else {
+				// Library is not analyzed, analyze it.
+				if folderExists(libPath) {
+					// Download the Library to the File System.
+					// TODO: Could this be optimized (?)
+					output, err := runCommand("go", "get", "-d", "-v", libUrl)
+					if err != "" {
+						fmt.Println(err)
+					}
 
-			// If the folder exists in the file system, it will not be deleted afterwards.
-			if folderExists(libPath) {
-				libraryUrl := parseUrlToDownloadFormat(libraries[i])
+					fmt.Println(output)
 
-				// Download the Library to the File System.
-				output, err := runCommand("go", "get", "-d", "-v", libraryUrl)
-				if err != "" {
-					fmt.Println(err)
+					// Calculate the amount of Code Lines.
+					lines := runGocloc(libPath)
+
+					// Add the result to the cache
+					cache[libPath] = lines
+
+					// Append to the total variable.
+					totalLibraryCodeLines += lines
+				} else {
+					// Download the Library to the local File System.
+					// TODO: Could this be optimized (?)
+					output, errStr := runCommand("go", "get", "-d", "-v", libUrl)
+					if errStr != "" {
+						fmt.Println(err)
+					}
+
+					fmt.Println(output)
+
+					// Calculate the Code Lines of the Library.
+					lines := runGocloc(libPath)
+
+					// Add the result to the cache
+					cache[libPath] = lines
+
+					// Append to the total variable.
+					totalLibraryCodeLines += lines
+
+					// Folder doesn't exist in the file system, and after it has been analyzed, it will be deleted.
+					// TODO: Remove the Library from the File System.
 				}
-
-				// Output of the Comment
-				fmt.Println(output)
-
-				// Calculate the amount of Code Lines.
-				lines := runGocloc(libPath)
-
-				// Append to the total variable.
-				totalLibraryCodeLines = totalLibraryCodeLines + lines
 			}
-
-			// Folder doesn't exist in the file system, and after it has been analyzed, it will be deleted.
-			libraryUrl := parseUrlToDownloadFormat(libraries[i])
-
-			// Download the Library to the local File System.
-			output, errStr := runCommand("go", "get", "-d", "-v", libraryUrl)
-			if errStr != "" {
-				fmt.Println(err)
-			}
-
-			// Output of the Comment.
-			fmt.Println(output)
-
-			// Calculate the Code Lines of the Library.
-			lines := runGocloc(libPath)
-
-			// Append to the total variable.
-			totalLibraryCodeLines = totalLibraryCodeLines + lines
 		}
 
 		// Change GOPATH to point back to the original directory.
