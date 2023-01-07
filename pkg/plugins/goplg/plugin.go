@@ -357,13 +357,16 @@ func (g *GoPlugin) calcReposLibSizes() {
 	repoCount := len(repos.RepositoryData)
 
 	// TODO: Refactor this single loop to three different loops.
-	// Current Benchmark is 2 m 30 s for one repository.
 	// First loop saves the "repoName" - "libraries" to a map.
 	// Second loop goes through the libraries and downloads the them to locally.
 	// Third loop runs the gocloc commands.
 	// Fourth loop saves the values to the database.
 
 	libs := make(map[string][]string)
+
+	// ---
+
+	// TODO: Export to a function.
 
 	var wg sync.WaitGroup
 
@@ -473,9 +476,11 @@ func (g *GoPlugin) calcReposLibSizes() {
 	// Wait for all the goroutines to finish
 	wg.Wait()
 
+	// ---
+
+	// TODO: Export to a function.
+
 	// Loop through the repositories, and download the libraries to the local machine.
-	// TODO
-	// Let's test if this can be written as a multithreaded loop.
 
 	// Reinitialize - allow 20 concurrent goroutines.
 	semaphore = make(chan struct{}, 20)
@@ -484,7 +489,6 @@ func (g *GoPlugin) calcReposLibSizes() {
 	tempGoPath := utils.GetTempGoPath()
 	goPath := utils.GetGoPath()
 
-	// Download the libraries to the file system.
 	// Change GOPATH to point to temporary directory.
 	os.Setenv("GOPATH", tempGoPath)
 
@@ -495,17 +499,12 @@ func (g *GoPlugin) calcReposLibSizes() {
 		go func(i int) {
 			repoName := repos.RepositoryData[i].RepositoryName
 
-			// Extract this a Variable, so the len function doesn't calulate itself multiple times.
 			libCount := len(libs[repoName])
 
-			// Download the Libraries to the File System.
-			// Run this as a single threaded for -loop, since go get can't be ran in parallel.
-			// TODO: Can this be optimized, current benchmark for single repo: 2m 45s
+			// TODO: There might be ways to optimize this.
 			for i := 0; i < libCount; i++ {
 				libUrl := parseUrlToDownloadFormat(libs[repoName][i])
 
-				// TODO: Can this be optimized (?)
-				// Current benchmark is 2m 45s
 				output, err := runCommand("go", "get", "-d", "-v", libUrl)
 				if err != "" {
 					fmt.Println(err)
@@ -514,7 +513,6 @@ func (g *GoPlugin) calcReposLibSizes() {
 				fmt.Println(output)
 			}
 
-			// Acquire a token from the semaphore
 			wg.Done()
 		}(i)
 	}
@@ -524,9 +522,30 @@ func (g *GoPlugin) calcReposLibSizes() {
 	// Change GOPATH to point back to the original directory.
 	os.Setenv("GOPATH", goPath)
 
-	// TODO: Run the goclocs next
-	// for i := 0; i < repoCount; i++ {
-	// }
+	// ---
 
-	// TODO: Run the database saves next.
+	// TODO: Export to a function.
+
+	// Create a semaphore with a capacity of 50.
+	semaphore = make(chan struct{}, 50)
+
+	// TODO
+	// Loop through repositories and libraries, and calculate the amount library code lines.
+	for i := 0; i < repoCount; i++ {
+		repoName := repos.RepositoryData[i].RepositoryName
+		libCount := len(libs[repoName])
+		totalLibraryCodeLines := 0
+
+		// TODO: goroutines
+		// TODO: Cache
+		for j := 0; j < libCount; j++ {
+			libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
+			lines := runGocloc(libPath)
+			totalLibraryCodeLines += lines
+		}
+
+		g.updateLibraryCodeLinesToDatabase(repoName, totalLibraryCodeLines)
+
+		// TODO: Prune the tmp/ folder
+	}
 }
