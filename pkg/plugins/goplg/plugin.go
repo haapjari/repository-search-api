@@ -384,9 +384,15 @@ func (g *GoPlugin) enrichWithLibraryData() {
 	repositories := g.getAllRepositories()
 	repositoriesCount := len(repositories.RepositoryData)
 
+	// TODO: Refactor this single loop to three different loops.
+	// Current Benchmark is 2 m 30 s for one repository.
+	// First loop saves the "repoName" - "libraries" to a map.
+	// Second loop goes through the libraries and downloads the them to locally.
+	// Third loop runs the gocloc commands and saves them to the database.
+
 	for i := 0; i < repositoriesCount; i++ {
-		repositoryUrl := repositories.RepositoryData[i].RepositoryUrl
-		repositoryName := repositories.RepositoryData[i].RepositoryName
+		repoUrl := repositories.RepositoryData[i].RepositoryUrl
+		repoName := repositories.RepositoryData[i].RepositoryName
 
 		// Query String
 		queryString := fmt.Sprintf(`{
@@ -401,7 +407,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 					}
 				}
 			}
-		}`, repositoryUrl)
+		}`, repoUrl)
 
 		// Construct the Query
 		rawRequestBody := map[string]string{
@@ -444,7 +450,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
 		if checkInnerModFiles(outerModFile) {
 			// Parse the ending from URL.
-			owner, repo, err := parseRepositoryName(repositoryUrl)
+			owner, repo, err := parseRepositoryName(repoUrl)
 			utils.CheckErr(err)
 
 			innerModFiles = parseInnerModFiles(outerModFile, owner+"/"+repo)
@@ -492,10 +498,9 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			fmt.Println(output)
 		}
 
-		// Create a semaphore with a capacity of 3.
+		// Create a semaphore with a capacity of 50.
 		semaphore := make(chan struct{}, 50)
 
-		// Create a wait group with a count of 10.
 		var wg sync.WaitGroup
 
 		// Run "gocloc" - commands in parallel.
@@ -504,7 +509,7 @@ func (g *GoPlugin) enrichWithLibraryData() {
 			wg.Add(1)
 
 			go func(i int) {
-				// Acquire a slot in the semaphore.
+				// Reseve a slot in the semaphore.
 				semaphore <- struct{}{}
 
 				// Calculate the amount of Code Lines.
@@ -530,6 +535,6 @@ func (g *GoPlugin) enrichWithLibraryData() {
 		os.Setenv("GOPATH", goPath)
 
 		// Update this to the Database.
-		g.updateLibraryCodeLinesToDatabase(repositoryName, totalLibraryCodeLines)
+		g.updateLibraryCodeLinesToDatabase(repoName, totalLibraryCodeLines)
 	}
 }
