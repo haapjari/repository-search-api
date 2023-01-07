@@ -367,8 +367,9 @@ func (g *GoPlugin) calcReposLibSizes() {
 
 	var wg sync.WaitGroup
 
-	// Create a semaphore with a capacity of 2
-	semaphore := make(chan struct{}, 50)
+	// Semaphore.
+	// Tested with 50 concurrent goroutines.
+	semaphore := make(chan struct{}, 20)
 
 	for i := 0; i < repoCount; i++ {
 		// Acquire a token from the semaphore
@@ -474,39 +475,54 @@ func (g *GoPlugin) calcReposLibSizes() {
 
 	// Loop through the repositories, and download the libraries to the local machine.
 	// TODO
+	// Let's test if this can be written as a multithreaded loop.
+
+	// Reinitialize - allow 20 concurrent goroutines.
+	semaphore = make(chan struct{}, 20)
+
+	// Read GOPATH variables from the environment.
+	tempGoPath := utils.GetTempGoPath()
+	goPath := utils.GetGoPath()
+
+	// Download the libraries to the file system.
+	// Change GOPATH to point to temporary directory.
+	os.Setenv("GOPATH", tempGoPath)
+
 	for i := 0; i < repoCount; i++ {
-		repoName := repos.RepositoryData[i].RepositoryName
+		wg.Add(1)
+		semaphore <- struct{}{}
 
-		// Extract this a Variable, so the len function doesn't calulate itself multiple times.
-		libCount := len(libs[repoName])
+		go func(i int) {
+			repoName := repos.RepositoryData[i].RepositoryName
 
-		// Read GOPATH variables from the environment.
-		tempGoPath := utils.GetTempGoPath()
-		goPath := utils.GetGoPath()
+			// Extract this a Variable, so the len function doesn't calulate itself multiple times.
+			libCount := len(libs[repoName])
 
-		// Download the libraries to the file system.
-		// Change GOPATH to point to temporary directory.
-		os.Setenv("GOPATH", tempGoPath)
+			// Download the Libraries to the File System.
+			// Run this as a single threaded for -loop, since go get can't be ran in parallel.
+			// TODO: Can this be optimized, current benchmark for single repo: 2m 45s
+			for i := 0; i < libCount; i++ {
+				libUrl := parseUrlToDownloadFormat(libs[repoName][i])
 
-		// Download the Libraries to the File System.
-		// Run this as a single threaded for -loop, since go get can't be ran in parallel.
-		// TODO: Can this be optimized, current benchmark for single repo: 2m 45s
-		for i := 0; i < libCount; i++ {
-			libUrl := parseUrlToDownloadFormat(libs[repoName][i])
+				// TODO: Can this be optimized (?)
+				// Current benchmark is 2m 45s
+				output, err := runCommand("go", "get", "-d", "-v", libUrl)
+				if err != "" {
+					fmt.Println(err)
+				}
 
-			// TODO: Can this be optimized (?)
-			// Current benchmark is 2m 45s
-			output, err := runCommand("go", "get", "-d", "-v", libUrl)
-			if err != "" {
-				fmt.Println(err)
+				fmt.Println(output)
 			}
 
-			fmt.Println(output)
-		}
-
-		// Change GOPATH to point back to the original directory.
-		os.Setenv("GOPATH", goPath)
+			// Acquire a token from the semaphore
+			wg.Done()
+		}(i)
 	}
+
+	wg.Wait()
+
+	// Change GOPATH to point back to the original directory.
+	os.Setenv("GOPATH", goPath)
 
 	// TODO: Run the goclocs next
 	// for i := 0; i < repoCount; i++ {
