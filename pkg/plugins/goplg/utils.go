@@ -44,7 +44,6 @@ func (g *GoPlugin) writeSourceGraphResponseToDatabase(length int, repositories [
 		continue
 	}
 
-	// close(semaphore) // TODO
 }
 
 // TODO: Refactor, to not to use HTTP requests (?)

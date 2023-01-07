@@ -356,12 +356,7 @@ func (g *GoPlugin) calcReposLibSizes() {
 	repos := g.getAllRepositories()
 	repoCount := len(repos.RepositoryData)
 
-	// TODO: Refactor this single loop to three different loops.
-	// First loop saves the "repoName" - "libraries" to a map.
-	// Second loop goes through the libraries and downloads the them to locally.
-	// Third loop runs the gocloc commands.
-	// Fourth loop saves the values to the database.
-
+	// Map of Repository Name (as key) and go.mod -file's dependencies.
 	libs := make(map[string][]string)
 
 	// ---
@@ -370,8 +365,6 @@ func (g *GoPlugin) calcReposLibSizes() {
 
 	var wg sync.WaitGroup
 
-	// Semaphore.
-	// Tested with 50 concurrent goroutines.
 	semaphore := make(chan struct{}, 20)
 
 	for i := 0; i < repoCount; i++ {
@@ -510,7 +503,9 @@ func (g *GoPlugin) calcReposLibSizes() {
 					fmt.Println(err)
 				}
 
-				fmt.Println(output)
+				if output != "" {
+					fmt.Println(output)
+				}
 			}
 
 			wg.Done()
@@ -526,26 +521,40 @@ func (g *GoPlugin) calcReposLibSizes() {
 
 	// TODO: Export to a function.
 
-	// Create a semaphore with a capacity of 50.
-	semaphore = make(chan struct{}, 50)
+	// ---
 
 	// TODO
 	// Loop through repositories and libraries, and calculate the amount library code lines.
 	for i := 0; i < repoCount; i++ {
 		repoName := repos.RepositoryData[i].RepositoryName
 		libCount := len(libs[repoName])
+		semaphore = make(chan struct{}, 20)
 		totalLibraryCodeLines := 0
 
-		// TODO: goroutines
 		// TODO: Cache
 		for j := 0; j < libCount; j++ {
-			libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
-			lines := runGocloc(libPath)
-			totalLibraryCodeLines += lines
+			wg.Add(1)
+
+			go func(i int) {
+				semaphore <- struct{}{} // reserve
+				libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
+				lines := runGocloc(libPath)
+				totalLibraryCodeLines += lines
+				<-semaphore // release
+
+				wg.Done()
+			}(i)
+
+			wg.Wait()
 		}
 
 		g.updateLibraryCodeLinesToDatabase(repoName, totalLibraryCodeLines)
 
 		// TODO: Prune the tmp/ folder
+	}
+
+	// Prune the tmp/ folder, if we arent in development mode.
+	if !(utils.GetLocalenv() == "development") {
+		os.RemoveAll(utils.GetTempGoPath())
 	}
 }
