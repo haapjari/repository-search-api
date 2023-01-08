@@ -35,6 +35,7 @@ type GoPlugin struct {
 	DatabaseClient *gorm.DB
 	GitHubClient   *http.Client
 	MaxThreads     int
+	BatchSize      int
 }
 
 func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
@@ -50,6 +51,7 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 	g.GitHubClient = oauth2.NewClient(context.Background(), tokenSource)
 	g.DatabaseClient = DatabaseClient
 	g.MaxThreads = 20
+	g.BatchSize = 10
 
 	g.Parser = NewParser()
 
@@ -71,16 +73,12 @@ func (g *GoPlugin) GetRepositoryMetadata(c int) {
 
 	// TODO: Optimizations.
 	g.calcReposLibSizes()
-
-	// g.enrichWithLibraryData()
 }
 
 // Delete duplicate repositories.
 func (g *GoPlugin) deleteDuplicateRepositories() {
 	repositories := g.getAllRepositories()
-
 	duplicateRepositories := findDuplicateRepositoryEntries(repositories.RepositoryData)
-
 	amount := len(duplicateRepositories)
 
 	for i := 0; i < amount; i++ {
@@ -356,6 +354,8 @@ func (g *GoPlugin) createRepositoryDependenciesMap(repos []models.Repository) ma
 	// Map of Repository Name (as key) and go.mod -file's dependencies.
 	libs := make(map[string][]string)
 
+	var libMutex sync.Mutex
+
 	// ---
 	var wg sync.WaitGroup
 
@@ -432,6 +432,9 @@ func (g *GoPlugin) createRepositoryDependenciesMap(repos []models.Repository) ma
 				innerModFiles = parseInnerModFiles(outerModFile, owner+"/"+repo)
 			}
 
+			// Protect the libraries slice with a mutex.
+			libMutex.Lock()
+
 			// Parse the name of libraries from modfile to a slice.
 			libraries = parseLibrariesFromModFile(outerModFile)
 
@@ -451,6 +454,9 @@ func (g *GoPlugin) createRepositoryDependenciesMap(repos []models.Repository) ma
 
 			// Append all the values to the map.
 			libs[repoName] = append(libs[repoName], libraries...)
+
+			// Release the mutex.
+			libMutex.Unlock()
 
 			// Release the token
 			<-semaphore
@@ -521,10 +527,11 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	repoCount := len(repos)
 
 	// Reinitialize - allow 20 concurrent goroutines.
-	semaphore := make(chan struct{}, 20)
-	var wg sync.WaitGroup
+	// semaphore := make(chan struct{}, 20)
+	// TODO: Enable
+	// var wg sync.WaitGroup
 
-	var goModLock sync.Mutex
+	// var goModLock sync.Mutex
 
 	// Read GOPATH variables from the environment.
 	tempGoPath := utils.GetTempGoPath()
@@ -539,43 +546,68 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
 
+	fmt.Println("Repo Count: ", repoCount)
+
 	for i := 0; i < repoCount; i++ {
-		wg.Add(1)
-		semaphore <- struct{}{}
+		// 		wg.Add(1)
+		// semaphore <- struct{}{}
 
-		go func(i int) {
-			repoName := repos[i].RepositoryName
-			libCount := len(libs[repoName])
+		// go func(i int) {
+		//		repoName := repos[i].RepositoryName
+		//			libCount := len(libs[repoName])
 
-			// TODO: There might be ways to optimize this.
-			for i := 0; i < libCount; i++ {
-				libUrl := parseUrlToDownloadFormat(libs[repoName][i])
+		// TODO: There might be ways to optimize this.
+		// TODO: Enable
+		// Commented for testing.
+		//			for i := 0; i < libCount; i++ {
+		//			libUrl := parseUrlToDownloadFormat(libs[repoName][i])
 
-				goModLock.Lock()
+		// 				goModLock.Lock()
 
-				output, err := runCommand("go", "get", "-d", "-v", libUrl)
-				if err != "" {
-					fmt.Println(err)
+		// output, err := runCommand("go", "get", "-d", "-v", libUrl)
+		// if err != "" {
+		// fmt.Println(err)
+		// }
+
+		// // Reset go.mod and go.sum files.
+		// utils.RemoveFile("go.mod")
+		// utils.RemoveFile("go.sum")
+		// utils.CopyFile("go.mod.bak", "go.mod")
+		// utils.CopyFile("go.sum.bak", "go.sum")
+
+		// goModLock.Unlock()
+
+		// if output != "" {
+		// fmt.Println(output)
+		// }
+		//	}
+
+		// wg.Done()
+		// 		}(i)
+
+		// TODO: Implement the analysis in batches.
+
+		// If modulo of the current index is 0, then we have reached the end of a batch.
+		// and we will run the analysis on the current batch.
+		if i != 0 && (i+1)%g.BatchSize == 0 {
+			fmt.Println("Current Index: ", i+1)
+			fmt.Println("Last 10 Indexes")
+
+			if i != 0 && (i+1)%g.BatchSize == 0 {
+				// Loop through last 10 i values.
+				for j := i - (g.BatchSize - 1); j <= i; j++ {
+					fmt.Println(j)
+					// TODO: Run analysis for the last 10 libraries, save the results to the memory.
 				}
 
-				// Reset go.mod and go.sum files.
-				utils.RemoveFile("go.mod")
-				utils.RemoveFile("go.sum")
-				utils.CopyFile("go.mod.bak", "go.mod")
-				utils.CopyFile("go.sum.bak", "go.sum")
-
-				goModLock.Unlock()
-
-				if output != "" {
-					fmt.Println(output)
-				}
+				// TODO: Delete the last 10 libraries from the disk, in order to to suffocate the container / machine.
+				fmt.Println("---")
 			}
-
-			wg.Done()
-		}(i)
+		}
 	}
 
-	wg.Wait()
+	// TODO: Enable
+	// wg.Wait()
 
 	// Change GOPATH to point back to the original directory.
 	os.Setenv("GOPATH", goPath)
@@ -603,6 +635,9 @@ func (g *GoPlugin) calcReposLibSizes() {
 	// Map of Repository Name (as key) and go.mod -file's dependencies.
 	libs := g.createRepositoryDependenciesMap(repos.RepositoryData)
 
+	// TODO
 	g.downloadGoLibraries(repos.RepositoryData, libs)
-	g.calculateLibraryCodeLines(repos.RepositoryData, libs)
+
+	// TODO
+	// g.calculateLibraryCodeLines(repos.RepositoryData, libs)
 }
