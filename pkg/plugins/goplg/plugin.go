@@ -543,66 +543,46 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	// Copy and backup go.mod and go.sum files.
 	// This is due to the fact that the go.mod file is modified when downloading libraries,
 	// and we don't want to modify the original go.mod file.
-	utils.CopyFile("go.mod", "go.mod.bak")
-	utils.CopyFile("go.sum", "go.sum.bak")
-
-	fmt.Println("Repo Count: ", repoCount)
+	// utils.CopyFile("go.mod", "go.mod.bak")
+	// utils.CopyFile("go.sum", "go.sum.bak")
 
 	for i := 0; i < repoCount; i++ {
-		// 		wg.Add(1)
-		// semaphore <- struct{}{}
+		repoName := repos[i].RepositoryName
+		libCount := len(libs[repoName])
 
-		// go func(i int) {
-		//		repoName := repos[i].RepositoryName
-		//			libCount := len(libs[repoName])
-
-		// TODO: There might be ways to optimize this.
-		// TODO: Enable
-		// Commented for testing.
-		//			for i := 0; i < libCount; i++ {
-		//			libUrl := parseUrlToDownloadFormat(libs[repoName][i])
-
-		// 				goModLock.Lock()
-
-		// output, err := runCommand("go", "get", "-d", "-v", libUrl)
-		// if err != "" {
-		// fmt.Println(err)
-		// }
-
-		// // Reset go.mod and go.sum files.
-		// utils.RemoveFile("go.mod")
-		// utils.RemoveFile("go.sum")
-		// utils.CopyFile("go.mod.bak", "go.mod")
-		// utils.CopyFile("go.sum.bak", "go.sum")
-
-		// goModLock.Unlock()
-
-		// if output != "" {
-		// fmt.Println(output)
-		// }
-		//	}
+		fmt.Println("Case of repo: ", repoName)
+		fmt.Println("We should iterate over: ", libCount, "libraries.")
 
 		// wg.Done()
 		// 		}(i)
 
 		// TODO: Implement the analysis in batches.
 
-		// If modulo of the current index is 0, then we have reached the end of a batch.
-		// and we will run the analysis on the current batch.
-		if i != 0 && (i+1)%g.BatchSize == 0 {
-			fmt.Println("Current Index: ", i+1)
-			fmt.Println("Last 10 Indexes")
-
-			if i != 0 && (i+1)%g.BatchSize == 0 {
-				// Loop through last 10 i values.
-				for j := i - (g.BatchSize - 1); j <= i; j++ {
-					fmt.Println(j)
-					// TODO: Run analysis for the last 10 libraries, save the results to the memory.
+		// Loop throught the libraries of the repository.
+		// TODO: The last batch might not be of size "BatchSize", how to tackle this edge case?
+		for z := 0; z < libCount; z++ {
+			// Going through the values in batches of "BatchSize".
+			if z != 0 && (z+1)%g.BatchSize == 0 {
+				// Process the batch of libraries
+				for j := z - (g.BatchSize - 1); j <= z; j++ {
+					libUrl := parseUrlToDownloadFormat(libs[repoName][j])
+					fmt.Println("Index: ", j, "Lib: ", libUrl)
+					// TODO: Download and analyze the library
 				}
+				// TODO: Delete the processed libraries from the disk
 
-				// TODO: Delete the last 10 libraries from the disk, in order to to suffocate the container / machine.
 				fmt.Println("---")
 			}
+		}
+
+		// Process the remaining libraries that didn't fit into a full batch
+		if libCount%g.BatchSize != 0 {
+			for j := libCount - (libCount % g.BatchSize); j < libCount; j++ {
+				libUrl := parseUrlToDownloadFormat(libs[repoName][j])
+				fmt.Println("Index: ", j, "Lib: ", libUrl)
+				// TODO: Download and analyze the library
+			}
+			// TODO: Delete the processed libraries from the disk
 		}
 	}
 
@@ -613,17 +593,17 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	os.Setenv("GOPATH", goPath)
 
 	// Reset go.mod and go.sum files.
-	utils.RemoveFile("go.mod")
-	utils.RemoveFile("go.sum")
-	utils.CopyFile("go.mod.bak", "go.mod")
-	utils.CopyFile("go.sum.bak", "go.sum")
-	utils.RemoveFile("go.mod.bak")
-	utils.RemoveFile("go.sum.bak")
+	// 	utils.RemoveFile("go.mod")
+	// utils.RemoveFile("go.sum")
+	// utils.CopyFile("go.mod.bak", "go.mod")
+	// utils.CopyFile("go.sum.bak", "go.sum")
+	// utils.RemoveFile("go.mod.bak")
+	// utils.RemoveFile("go.sum.bak")
 
 	// Prune the tmp/ folder, if we arent in development mode.
-	if !(utils.GetLocalenv() == "development") {
-		os.RemoveAll(utils.GetTempGoPath())
-	}
+	// 	if !(utils.GetLocalenv() == "development") {
+	// os.RemoveAll(utils.GetTempGoPath())
+	//	}
 }
 
 // TODO
