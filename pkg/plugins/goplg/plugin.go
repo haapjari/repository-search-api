@@ -34,7 +34,7 @@ type GoPlugin struct {
 	Parser         *Parser
 	DatabaseClient *gorm.DB
 	GitHubClient   *http.Client
-	MaxThreads     int
+	MaxRoutines    int
 	BatchSize      int
 }
 
@@ -50,8 +50,9 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 
 	g.GitHubClient = oauth2.NewClient(context.Background(), tokenSource)
 	g.DatabaseClient = DatabaseClient
-	g.MaxThreads = 20
-	g.BatchSize = 10
+	// Convert string to int.
+	g.MaxRoutines, _ = strconv.Atoi(utils.GetMaxRoutines())
+	g.BatchSize, _ = strconv.Atoi(utils.GetBatchSize())
 
 	g.Parser = NewParser()
 
@@ -232,7 +233,7 @@ func (g *GoPlugin) enrichWithMetadata() {
 	var wg sync.WaitGroup
 
 	// Semaphore is a safeguard to goroutines, to allow only "MaxThreads" run at the same time.
-	semaphore := make(chan int, g.MaxThreads)
+	semaphore := make(chan int, g.MaxRoutines)
 
 	for i := 0; i < c; i++ {
 		semaphore <- 1
@@ -525,15 +526,6 @@ func (g *GoPlugin) calculateLibraryCodeLines(repos []models.Repository, libs map
 // TODO: All the repositories are downloaded modified to the same go.mod file - need to address this.
 func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[string][]string) {
 	repoCount := len(repos)
-
-	// Reinitialize - allow 20 concurrent goroutines.
-	// semaphore := make(chan struct{}, 20)
-	// TODO: Enable
-	// var wg sync.WaitGroup
-
-	// var goModLock sync.Mutex
-
-	// Read GOPATH variables from the environment.
 	tempGoPath := utils.GetTempGoPath()
 	goPath := utils.GetGoPath()
 
@@ -543,62 +535,78 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	// Copy and backup go.mod and go.sum files.
 	// This is due to the fact that the go.mod file is modified when downloading libraries,
 	// and we don't want to modify the original go.mod file.
-	// utils.CopyFile("go.mod", "go.mod.bak")
-	// utils.CopyFile("go.sum", "go.sum.bak")
+	utils.CopyFile("go.mod", "go.mod.bak")
+	utils.CopyFile("go.sum", "go.sum.bak")
+
+	// TODO: Cache
+	// TODO: Goroutines
+	// TODO: Calculations
 
 	for i := 0; i < repoCount; i++ {
 		repoName := repos[i].RepositoryName
-		libCount := len(libs[repoName])
+		reposLibCount := len(libs[repoName])
+		// libCodeLines := 0
 
-		fmt.Println("Case of repo: ", repoName)
-		fmt.Println("We should iterate over: ", libCount, "libraries.")
+		// Loop through the libs of the repository.
+		for z := 0; z < reposLibCount; z++ {
 
-		// wg.Done()
-		// 		}(i)
-
-		// TODO: Implement the analysis in batches.
-
-		// Loop throught the libraries of the repository.
-		// TODO: The last batch might not be of size "BatchSize", how to tackle this edge case?
-		for z := 0; z < libCount; z++ {
-			// Going through the values in batches of "BatchSize".
+			// Loop through the libraries in the batches of "g.BatchSize".
+			// If the index is divisible by the batch size, process the batch.
+			// This means, that batch size of indexes will be processed at once.
 			if z != 0 && (z+1)%g.BatchSize == 0 {
-				// Process the batch of libraries
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
 					libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-					fmt.Println("Index: ", j, "Lib: ", libUrl)
-					// TODO: Download and analyze the library
+
+					// Download the Libraries.
+					out, err := runCommand("go", "get", "-d", "-v", libUrl)
+					if err != "" {
+						fmt.Println(err)
+					}
+
+					if out != "" {
+						fmt.Println(out)
+					}
 				}
 				// TODO: Delete the processed libraries from the disk
-
-				fmt.Println("---")
 			}
 		}
 
-		// Process the remaining libraries that didn't fit into a full batch
-		if libCount%g.BatchSize != 0 {
-			for j := libCount - (libCount % g.BatchSize); j < libCount; j++ {
+		// If the number of libraries is not divisible by the batch size, process the remaining libraries.
+		// Start the index from the last batch index.
+		if reposLibCount%g.BatchSize != 0 {
+			for j := reposLibCount - (reposLibCount % g.BatchSize); j < reposLibCount; j++ {
 				libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-				fmt.Println("Index: ", j, "Lib: ", libUrl)
-				// TODO: Download and analyze the library
+
+				// Download the Libraries.
+				out, err := runCommand("go", "get", "-d", "-v", libUrl)
+				if err != "" {
+					fmt.Println(err)
+				}
+
+				if out != "" {
+					fmt.Println(out)
+				}
 			}
 			// TODO: Delete the processed libraries from the disk
 		}
-	}
 
-	// TODO: Enable
-	// wg.Wait()
+		// Reset the go.mod file and go.sum file.
+		utils.RemoveFile("go.mod")
+		utils.RemoveFile("go.sum")
+		utils.CopyFile("go.mod.bak", "go.mod")
+		utils.CopyFile("go.sum.bak", "go.sum")
+	}
 
 	// Change GOPATH to point back to the original directory.
 	os.Setenv("GOPATH", goPath)
 
 	// Reset go.mod and go.sum files.
-	// 	utils.RemoveFile("go.mod")
-	// utils.RemoveFile("go.sum")
-	// utils.CopyFile("go.mod.bak", "go.mod")
-	// utils.CopyFile("go.sum.bak", "go.sum")
-	// utils.RemoveFile("go.mod.bak")
-	// utils.RemoveFile("go.sum.bak")
+	utils.RemoveFile("go.mod")
+	utils.RemoveFile("go.sum")
+	utils.CopyFile("go.mod.bak", "go.mod")
+	utils.CopyFile("go.sum.bak", "go.sum")
+	utils.RemoveFile("go.mod.bak")
+	utils.RemoveFile("go.sum.bak")
 
 	// Prune the tmp/ folder, if we arent in development mode.
 	// 	if !(utils.GetLocalenv() == "development") {

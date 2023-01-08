@@ -23,7 +23,7 @@ func (g *GoPlugin) writeSourceGraphResponseToDatabase(length int, repositories [
 	var wg sync.WaitGroup
 
 	// Semaphore is a safeguard to goroutines, to allow only "MaxThreads" run at the same time.
-	semaphore := make(chan int, g.MaxThreads)
+	semaphore := make(chan int, g.MaxRoutines)
 
 	for i := 0; i < length; i++ {
 		semaphore <- 1

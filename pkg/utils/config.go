@@ -15,6 +15,20 @@ func GetRepositoryApiBaseUrl() string {
 	return fmt.Sprint(viper.Get("REPOSITORY_API_BASEURL"))
 }
 
+func GetMaxRoutines() string {
+	viper.SetConfigFile(".env")
+	viper.ReadInConfig()
+
+	return fmt.Sprint(viper.Get("MAX_ROUTINES"))
+}
+
+func GetBatchSize() string {
+	viper.SetConfigFile(".env")
+	viper.ReadInConfig()
+
+	return fmt.Sprint(viper.Get("BATCH_SIZE"))
+}
+
 func GetLocalenv() string {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()
