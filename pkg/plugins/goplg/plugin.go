@@ -533,13 +533,18 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	// Change GOPATH to point to temporary directory.
 	os.Setenv("GOPATH", tempGoPath)
 
+	// Copy and backup go.mod and go.sum files.
+	// This is due to the fact that the go.mod file is modified when downloading libraries,
+	// and we don't want to modify the original go.mod file.
+	utils.CopyFile("go.mod", "go.mod.bak")
+	utils.CopyFile("go.sum", "go.sum.bak")
+
 	for i := 0; i < repoCount; i++ {
 		wg.Add(1)
 		semaphore <- struct{}{}
 
 		go func(i int) {
 			repoName := repos[i].RepositoryName
-
 			libCount := len(libs[repoName])
 
 			// TODO: There might be ways to optimize this.
@@ -547,10 +552,18 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 				libUrl := parseUrlToDownloadFormat(libs[repoName][i])
 
 				goModLock.Lock()
+
 				output, err := runCommand("go", "get", "-d", "-v", libUrl)
 				if err != "" {
 					fmt.Println(err)
 				}
+
+				// Reset go.mod and go.sum files.
+				utils.RemoveFile("go.mod")
+				utils.RemoveFile("go.sum")
+				utils.CopyFile("go.mod.bak", "go.mod")
+				utils.CopyFile("go.sum.bak", "go.sum")
+
 				goModLock.Unlock()
 
 				if output != "" {
@@ -566,6 +579,14 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 
 	// Change GOPATH to point back to the original directory.
 	os.Setenv("GOPATH", goPath)
+
+	// Reset go.mod and go.sum files.
+	utils.RemoveFile("go.mod")
+	utils.RemoveFile("go.sum")
+	utils.CopyFile("go.mod.bak", "go.mod")
+	utils.CopyFile("go.sum.bak", "go.sum")
+	utils.RemoveFile("go.mod.bak")
+	utils.RemoveFile("go.sum.bak")
 
 	// Prune the tmp/ folder, if we arent in development mode.
 	if !(utils.GetLocalenv() == "development") {

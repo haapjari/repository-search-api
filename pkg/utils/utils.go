@@ -66,3 +66,23 @@ func CheckError(err error) {
 		fmt.Println(err.Error())
 	}
 }
+
+func CopyFile(src string, dst string) error {
+	out, err := exec.Command("cp", src, dst).CombinedOutput()
+	if err != nil {
+		fmt.Printf("%s\n", out)
+		return err
+	}
+
+	return nil
+}
+
+func RemoveFile(path string) error {
+	out, err := exec.Command("rm", path).CombinedOutput()
+	if err != nil {
+		fmt.Printf("%s\n", out)
+		return err
+	}
+
+	return nil
+}

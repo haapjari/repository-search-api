@@ -58,13 +58,13 @@ LOCAL_ENV=
 
 ## TODO
 
+- One repository contains almost 1 GB of data, repository analysis needs to be done in batches.
+    - Maybe batches of 10 - 50.
 - Library Analysis:
     - Add error handling.
     - If the commands return errors - make the functionality more robust.
     - Parallelism won't solve the performance issues, since `go get` is designed to be 
     ran as a single threaded. Need to look for optimizations else where.
-    - For example - first bulk install everything, but run gocloc -- commands in parallel.
-    - Need to start working in different branches.
 - Optimizations
 - Performance Testing
 
