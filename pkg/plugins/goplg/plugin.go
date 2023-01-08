@@ -349,20 +349,14 @@ func (g *GoPlugin) enrichWithMetadata() {
 	}
 }
 
-// TODO
-// Enrich the values in the repositories -table with the codebase sizes of the libraries, and append them to the database.
-// Before running the gocloc, the vendor means, that the local path is different.
-func (g *GoPlugin) calcReposLibSizes() {
-	repos := g.getAllRepositories()
-	repoCount := len(repos.RepositoryData)
+// Function gets a list of repositories and returns a map of repository names and their dependencies (parsed from go.mod file).
+func (g *GoPlugin) createRepositoryDependenciesMap(repos []models.Repository) map[string][]string {
+	repoCount := len(repos)
 
 	// Map of Repository Name (as key) and go.mod -file's dependencies.
 	libs := make(map[string][]string)
 
 	// ---
-
-	// TODO: Export to a function.
-
 	var wg sync.WaitGroup
 
 	semaphore := make(chan struct{}, 20)
@@ -374,8 +368,8 @@ func (g *GoPlugin) calcReposLibSizes() {
 
 		// Launch a goroutine
 		go func(i int) {
-			repoUrl := repos.RepositoryData[i].RepositoryUrl
-			repoName := repos.RepositoryData[i].RepositoryName
+			repoUrl := repos[i].RepositoryUrl
+			repoName := repos[i].RepositoryName
 
 			// Query String
 			queryString := fmt.Sprintf(`{
@@ -469,14 +463,68 @@ func (g *GoPlugin) calcReposLibSizes() {
 	// Wait for all the goroutines to finish
 	wg.Wait()
 
+	return libs
+}
+
+// Function takes repos and libs and calculates the amount of library code lines for each repository, and writes that to db.
+// Requires the libraries to be downloaded in the file system.
+func (g *GoPlugin) calculateLibraryCodeLines(repos []models.Repository, libs map[string][]string) {
+	repoCount := len(repos)
+	var wg sync.WaitGroup
+
 	// ---
+	cache := make(map[string]int)
+	var cacheLock sync.Mutex
 
-	// TODO: Export to a function.
+	// TODO
+	// Loop through repositories and libraries, and calculate the amount library code lines.
+	for i := 0; i < repoCount; i++ {
+		repoName := repos[i].RepositoryName
+		libCount := len(libs[repoName])
+		semaphore := make(chan struct{}, 20)
+		totalLibraryCodeLines := 0
 
-	// Loop through the repositories, and download the libraries to the local machine.
+		// Lock Cache for Race Conditions.
+		cacheLock.Lock()
+
+		if lines, ok := cache[repoName]; ok {
+			totalLibraryCodeLines = lines // if the results are in the cache, use them
+		} else {
+			// if the results are not in the cache, calculate them and add them to the cache
+			for j := 0; j < libCount; j++ {
+				wg.Add(1)
+
+				go func(i int) {
+					semaphore <- struct{}{} // reserve
+					libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
+					lines := runGocloc(libPath)
+					totalLibraryCodeLines += lines
+					<-semaphore // release
+
+					wg.Done()
+				}(i)
+
+				wg.Wait()
+			}
+			// add the results to the cache
+			cache[repoName] = totalLibraryCodeLines
+		}
+		cacheLock.Unlock()
+
+		g.updateLibraryCodeLinesToDatabase(repoName, totalLibraryCodeLines)
+	}
+}
+
+// Loop through the repositories, and download the libraries to the local machine.
+// TODO: All the repositories are downloaded modified to the same go.mod file - need to address this.
+func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[string][]string) {
+	repoCount := len(repos)
 
 	// Reinitialize - allow 20 concurrent goroutines.
-	semaphore = make(chan struct{}, 20)
+	semaphore := make(chan struct{}, 20)
+	var wg sync.WaitGroup
+
+	var goModLock sync.Mutex
 
 	// Read GOPATH variables from the environment.
 	tempGoPath := utils.GetTempGoPath()
@@ -490,7 +538,7 @@ func (g *GoPlugin) calcReposLibSizes() {
 		semaphore <- struct{}{}
 
 		go func(i int) {
-			repoName := repos.RepositoryData[i].RepositoryName
+			repoName := repos[i].RepositoryName
 
 			libCount := len(libs[repoName])
 
@@ -498,10 +546,12 @@ func (g *GoPlugin) calcReposLibSizes() {
 			for i := 0; i < libCount; i++ {
 				libUrl := parseUrlToDownloadFormat(libs[repoName][i])
 
+				goModLock.Lock()
 				output, err := runCommand("go", "get", "-d", "-v", libUrl)
 				if err != "" {
 					fmt.Println(err)
 				}
+				goModLock.Unlock()
 
 				if output != "" {
 					fmt.Println(output)
@@ -517,44 +567,21 @@ func (g *GoPlugin) calcReposLibSizes() {
 	// Change GOPATH to point back to the original directory.
 	os.Setenv("GOPATH", goPath)
 
-	// ---
-
-	// TODO: Export to a function.
-
-	// ---
-
-	// TODO
-	// Loop through repositories and libraries, and calculate the amount library code lines.
-	for i := 0; i < repoCount; i++ {
-		repoName := repos.RepositoryData[i].RepositoryName
-		libCount := len(libs[repoName])
-		semaphore = make(chan struct{}, 20)
-		totalLibraryCodeLines := 0
-
-		// TODO: Cache
-		for j := 0; j < libCount; j++ {
-			wg.Add(1)
-
-			go func(i int) {
-				semaphore <- struct{}{} // reserve
-				libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
-				lines := runGocloc(libPath)
-				totalLibraryCodeLines += lines
-				<-semaphore // release
-
-				wg.Done()
-			}(i)
-
-			wg.Wait()
-		}
-
-		g.updateLibraryCodeLinesToDatabase(repoName, totalLibraryCodeLines)
-
-		// TODO: Prune the tmp/ folder
-	}
-
 	// Prune the tmp/ folder, if we arent in development mode.
 	if !(utils.GetLocalenv() == "development") {
 		os.RemoveAll(utils.GetTempGoPath())
 	}
+}
+
+// TODO
+// Enrich the values in the repositories -table with the codebase sizes of the libraries, and append them to the database.
+// Before running the gocloc, the vendor means, that the local path is different.
+func (g *GoPlugin) calcReposLibSizes() {
+	repos := g.getAllRepositories()
+
+	// Map of Repository Name (as key) and go.mod -file's dependencies.
+	libs := g.createRepositoryDependenciesMap(repos.RepositoryData)
+
+	g.downloadGoLibraries(repos.RepositoryData, libs)
+	g.calculateLibraryCodeLines(repos.RepositoryData, libs)
 }
