@@ -541,11 +541,12 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	// TODO: Cache
 	// TODO: Goroutines
 	// TODO: Calculations
+	// TODO: Deletions
 
 	for i := 0; i < repoCount; i++ {
 		repoName := repos[i].RepositoryName
 		reposLibCount := len(libs[repoName])
-		// libCodeLines := 0
+		libCodeLines := 0
 
 		// Loop through the libs of the repository.
 		for z := 0; z < reposLibCount; z++ {
@@ -567,7 +568,18 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 						fmt.Println(out)
 					}
 				}
-				// TODO: Delete the processed libraries from the disk
+
+				// TODO: Second loop, to exactly same condition than the first one.
+				// But this time the libraries are processed. Separate loops offers a potential to divide
+				// the tasks to goroutines in the future.
+				for j := z - (g.BatchSize - 1); j <= z; j++ {
+					libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
+					lines := runGocloc(libPath)
+					libCodeLines += lines
+				}
+
+				// TODO: Third loop, to exactly same condition than the first one.
+				// Delete the processed libraries from the disk
 			}
 		}
 
@@ -587,8 +599,22 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 					fmt.Println(out)
 				}
 			}
-			// TODO: Delete the processed libraries from the disk
+
+			// TODO: Second loop, to exactly same condition than the first one.
+			// But this time the libraries are processed. Separate loops offers a potential to divide
+			// the tasks to goroutines in the future.
+			for j := reposLibCount - (reposLibCount % g.BatchSize); j < reposLibCount; j++ {
+				libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
+				lines := runGocloc(libPath)
+				libCodeLines += lines
+			}
+
+			// TODO: Third loop, to exactly same condition than the first one.
+			// Delete the processed libraries from the disk
 		}
+
+		// TODO: Remove
+		fmt.Println("Libraries of " + repoName + " processed. Total lines of code: " + strconv.Itoa(libCodeLines))
 
 		// Reset the go.mod file and go.sum file.
 		utils.RemoveFile("go.mod")
