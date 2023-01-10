@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"sync"
 	"time"
@@ -540,7 +541,6 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 
 	// TODO: Cache
 	// TODO: Goroutines
-	// TODO: Calculations
 
 	for i := 0; i < repoCount; i++ {
 		repoName := repos[i].RepositoryName
@@ -556,16 +556,11 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 			if z != 0 && (z+1)%g.BatchSize == 0 {
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
 					libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-
-					// Download the Libraries.
-					out, err := runCommand("go", "get", "-d", "-v", libUrl)
-					if err != "" {
-						fmt.Println(err)
-					}
-
-					if out != "" {
-						fmt.Println(out)
-					}
+					cmd := exec.Command("go", "get", "-d", "-v", libUrl)
+					cmd.Stdout = os.Stdout
+					cmd.Stderr = os.Stderr
+					err := cmd.Run()
+					utils.CheckErr(err)
 				}
 
 				// Process a Batch of Libraries.
@@ -585,16 +580,11 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 		if reposLibCount%g.BatchSize != 0 {
 			for j := reposLibCount - (reposLibCount % g.BatchSize); j < reposLibCount; j++ {
 				libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-
-				// Download the Libraries.
-				out, err := runCommand("go", "get", "-d", "-v", libUrl)
-				if err != "" {
-					fmt.Println(err)
-				}
-
-				if out != "" {
-					fmt.Println(out)
-				}
+				cmd := exec.Command("go", "get", "-d", "-v", libUrl)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				err := cmd.Run()
+				utils.CheckErr(err)
 			}
 
 			// Process a Batch of Libraries.
@@ -608,8 +598,7 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 			pruneTempGoPath()
 		}
 
-		// TODO: Remove
-		fmt.Println("Libraries of " + repoName + " processed. Total lines of code: " + strconv.Itoa(libCodeLines))
+		g.updateLibraryCodeLinesToDatabase(repoName, libCodeLines)
 
 		// Reset the go.mod file and go.sum file.
 		utils.RemoveFile("go.mod")
