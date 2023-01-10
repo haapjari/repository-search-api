@@ -111,6 +111,22 @@ func runGocloc(path string) int {
 	return int(result.Total.Code)
 }
 
+// Delete the contents of tmp/ -folder.
+func pruneTempGoPath() {
+	// Delete the processed libraries from the disk, in order not to suffocate.
+	out, err := runCommand("chmod", "-R", "777", utils.GetTempGoPath())
+	if out != "" {
+		fmt.Println(out)
+	}
+
+	if err != "" {
+		fmt.Println(err)
+	}
+
+	os.RemoveAll(utils.GetTempGoPath())
+	os.MkdirAll(utils.GetTempGoPath(), os.ModePerm)
+}
+
 // Wrapper for "exec/os" command execution.
 // Copied from blog: https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
 func runCommand(name string, arg ...string) (string, string) {

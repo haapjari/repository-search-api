@@ -541,7 +541,6 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	// TODO: Cache
 	// TODO: Goroutines
 	// TODO: Calculations
-	// TODO: Deletions
 
 	for i := 0; i < repoCount; i++ {
 		repoName := repos[i].RepositoryName
@@ -569,17 +568,15 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 					}
 				}
 
-				// TODO: Second loop, to exactly same condition than the first one.
-				// But this time the libraries are processed. Separate loops offers a potential to divide
-				// the tasks to goroutines in the future.
+				// Process a Batch of Libraries.
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
 					libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
 					lines := runGocloc(libPath)
+
 					libCodeLines += lines
 				}
 
-				// TODO: Third loop, to exactly same condition than the first one.
-				// Delete the processed libraries from the disk
+				pruneTempGoPath()
 			}
 		}
 
@@ -600,17 +597,15 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 				}
 			}
 
-			// TODO: Second loop, to exactly same condition than the first one.
-			// But this time the libraries are processed. Separate loops offers a potential to divide
-			// the tasks to goroutines in the future.
+			// Process a Batch of Libraries.
 			for j := reposLibCount - (reposLibCount % g.BatchSize); j < reposLibCount; j++ {
 				libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
 				lines := runGocloc(libPath)
+
 				libCodeLines += lines
 			}
 
-			// TODO: Third loop, to exactly same condition than the first one.
-			// Delete the processed libraries from the disk
+			pruneTempGoPath()
 		}
 
 		// TODO: Remove
