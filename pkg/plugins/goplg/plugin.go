@@ -361,7 +361,7 @@ func (g *GoPlugin) createRepositoryDependenciesMap(repos []models.Repository) ma
 	// ---
 	var wg sync.WaitGroup
 
-	semaphore := make(chan struct{}, 20)
+	semaphore := make(chan struct{}, g.MaxRoutines)
 
 	for i := 0; i < repoCount; i++ {
 		// Acquire a token from the semaphore
@@ -489,7 +489,8 @@ func (g *GoPlugin) calculateLibraryCodeLines(repos []models.Repository, libs map
 	for i := 0; i < repoCount; i++ {
 		repoName := repos[i].RepositoryName
 		libCount := len(libs[repoName])
-		semaphore := make(chan struct{}, 20)
+
+		semaphore := make(chan struct{}, g.MaxRoutines)
 		totalLibraryCodeLines := 0
 
 		// Lock Cache for Race Conditions.
@@ -530,8 +531,6 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	tempGoPath := utils.GetTempGoPath()
 	goPath := utils.GetGoPath()
 
-	var wg sync.WaitGroup
-
 	// Change GOPATH to point to temporary directory.
 	os.Setenv("GOPATH", tempGoPath)
 
@@ -557,17 +556,12 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 			// This means, that batch size of indexes will be processed at once.
 			if z != 0 && (z+1)%g.BatchSize == 0 {
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
-					wg.Add(1)
-					go func(i int) {
-						libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-						cmd := exec.Command("go", "get", "-d", "-v", libUrl)
-						cmd.Stdout = os.Stdout
-						cmd.Stderr = os.Stderr
-						err := cmd.Run()
-						utils.CheckErr(err)
-						wg.Done()
-					}(i)
-					wg.Wait()
+					libUrl := parseUrlToDownloadFormat(libs[repoName][j])
+					cmd := exec.Command("go", "get", "-d", "-v", libUrl)
+					cmd.Stdout = os.Stdout
+					cmd.Stderr = os.Stderr
+					err := cmd.Run()
+					utils.CheckErr(err)
 				}
 
 				// Process a Batch of Libraries.
@@ -586,17 +580,12 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 		// Start the index from the last batch index.
 		if reposLibCount%g.BatchSize != 0 {
 			for j := reposLibCount - (reposLibCount % g.BatchSize); j < reposLibCount; j++ {
-				wg.Add(1)
-				go func(i int) {
-					libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-					cmd := exec.Command("go", "get", "-d", "-v", libUrl)
-					cmd.Stdout = os.Stdout
-					cmd.Stderr = os.Stderr
-					err := cmd.Run()
-					utils.CheckErr(err)
-					wg.Done()
-				}(i)
-				wg.Wait()
+				libUrl := parseUrlToDownloadFormat(libs[repoName][j])
+				cmd := exec.Command("go", "get", "-d", "-v", libUrl)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				err := cmd.Run()
+				utils.CheckErr(err)
 			}
 
 			// Process a Batch of Libraries.
@@ -608,6 +597,7 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 			}
 
 			pruneTempGoPath()
+
 		}
 
 		g.updateLibraryCodeLinesToDatabase(repoName, libCodeLines)
