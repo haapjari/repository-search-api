@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"strconv"
 	"sync"
 	"time"
@@ -530,6 +529,8 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	repoCount := len(repos)
 	tempGoPath := utils.GetTempGoPath()
 	goPath := utils.GetGoPath()
+	var wg sync.WaitGroup
+	var libMutex sync.Mutex
 
 	// Change GOPATH to point to temporary directory.
 	os.Setenv("GOPATH", tempGoPath)
@@ -542,67 +543,74 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 
 	// TODO: Cache
 	// TODO: Goroutines
+	//			- Implement the Lines and Libraries as Channels, in order to use goroutines here?
+	/*
+	   There are a few potential ways to optimize this code:
+
+	   - Instead of processing the libraries in batches, you could potentially
+	   process them concurrently using Go's goroutines. This would allow multiple
+	   libraries to be processed at the same time, which could speed up the overall process.
+	   - You're running gocloc command on each library, but you are running that command in
+	   sequential way, which is causing a slow processing. You could potentially
+	   run the command on multiple libraries in parallel using goroutines.
+	   - You could look into caching the results of gocloc command to avoid running
+	   it multiple times on the same library.
+	   - Additionally, you could also optimize the code to reduce the number of times
+	   you are making system calls, such as the calls to utils.RemoveFile() and utils.CopyFile()
+	   and exec.Command("go", "get", "-d", "-v", libUrl) which could be costly.
+
+	*/
 
 	for i := 0; i < repoCount; i++ {
 		repoName := repos[i].RepositoryName
 		reposLibCount := len(libs[repoName])
-		libCodeLines := 0
+		libCodeLines := make(chan int)
 
-		// Loop through the libs of the repository.
 		for z := 0; z < reposLibCount; z++ {
-
-			// Loop through the libraries in the batches of "g.BatchSize".
-			// If the index is divisible by the batch size, process the batch.
-			// This means, that batch size of indexes will be processed at once.
-			if z != 0 && (z+1)%g.BatchSize == 0 {
+			if z != 0 && (z+1)%g.BatchSize == 0 || z == reposLibCount-1 {
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
 					libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-					cmd := exec.Command("go", "get", "-d", "-v", libUrl)
-					cmd.Stdout = os.Stdout
-					cmd.Stderr = os.Stderr
-					err := cmd.Run()
-					utils.CheckErr(err)
+
+					out, err := runCommand("go", "get", "-d", "-v", libUrl)
+					if out != "" {
+						fmt.Println(out)
+					}
+
+					if err != "" {
+						fmt.Println(out)
+					}
 				}
 
-				// Process a Batch of Libraries.
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
-					libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
-					lines := runGocloc(libPath)
+					wg.Add(1)
+					go func(j int) {
 
-					libCodeLines += lines
+						libMutex.Lock()
+						libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
+						libMutex.Unlock()
+
+						lines := runGocloc(libPath)
+
+						libCodeLines <- lines
+
+						wg.Done()
+					}(j)
 				}
 
+				wg.Wait()
 				pruneTempGoPath()
 			}
 		}
 
-		// If the number of libraries is not divisible by the batch size, process the remaining libraries.
-		// Start the index from the last batch index.
-		if reposLibCount%g.BatchSize != 0 {
-			for j := reposLibCount - (reposLibCount % g.BatchSize); j < reposLibCount; j++ {
-				libUrl := parseUrlToDownloadFormat(libs[repoName][j])
-				cmd := exec.Command("go", "get", "-d", "-v", libUrl)
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				err := cmd.Run()
-				utils.CheckErr(err)
-			}
+		var libCodeLinesInt int
 
-			// Process a Batch of Libraries.
-			for j := reposLibCount - (reposLibCount % g.BatchSize); j < reposLibCount; j++ {
-				libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
-				lines := runGocloc(libPath)
-
-				libCodeLines += lines
-			}
-
-			pruneTempGoPath()
-
+		for val := range libCodeLines {
+			libCodeLinesInt += val
 		}
 
-		g.updateLibraryCodeLinesToDatabase(repoName, libCodeLines)
+		close(libCodeLines)
+		g.updateLibraryCodeLinesToDatabase(repoName, libCodeLinesInt)
 
-		// Reset the go.mod file and go.sum file.
 		utils.RemoveFile("go.mod")
 		utils.RemoveFile("go.sum")
 		utils.CopyFile("go.mod.bak", "go.mod")
