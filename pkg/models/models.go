@@ -71,3 +71,79 @@ type UpdateCommitInput struct {
 	CommitDate     string `json:"commit_date"`
 	CommitUser     string `json:"commit_user"`
 }
+
+type GitHubResponseStruct struct {
+	Data GitHubResponseDataStruct `json:"data"`
+}
+
+type GitHubResponseDataStruct struct {
+	Repository GitHubRepositoryStruct `json:"repository"`
+}
+
+type GitHubRepositoryStruct struct {
+	DefaultBranchRef GitHubDefaultBranch   `json:"defaultBranchRef"`
+	OpenIssues       GitHubOpenIssues      `json:"openIssues"`
+	ClosedIssues     GitHubClosedIssues    `json:"closedIssues"`
+	Languages        GitHubLanguages       `json:"languages"`
+	StargazerCount   int                   `json:"stargazerCount"`
+	CreatedAt        string                `json:"createdAt"`
+	PrimaryLanguage  GitHubPrimaryLanguage `json:"primaryLanguage"`
+	LicenseInfo      GitHubLicenseInfo     `json:"licenseInfo"`
+	LatestRelease    GitHubLatestRelease   `json:"latestRelease"`
+}
+
+type GitHubLatestRelease struct {
+	PublishedAt string `json:"publishedAt"`
+}
+
+type GitHubLicenseInfo struct {
+	Key string `json:"key"`
+}
+
+type GitHubPrimaryLanguage struct {
+	Name string `json:"name"`
+}
+
+type GitHubDefaultBranch struct {
+	Target GitHubTarget `json:"target"`
+}
+
+type GitHubTarget struct {
+	History GitHubHistory `json:"history"`
+}
+
+type GitHubHistory struct {
+	TotalCount int `json:"totalCount"`
+}
+
+type GitHubOpenIssues struct {
+	TotalCount int `json:"totalCount"`
+}
+
+type GitHubClosedIssues struct {
+	TotalCount int `json:"totalCount"`
+}
+
+type GitHubLanguages struct {
+	TotalSize int `json:"totalSize"`
+}
+
+type SourceGraphResponseStruct struct {
+	Data SourceGraphDataStruct `json:"data"`
+}
+
+type SourceGraphDataStruct struct {
+	Search SourceGraphSearch `json:"search"`
+}
+
+type SourceGraphSearch struct {
+	Results SourceGraphResults `json:"results"`
+}
+
+type SourceGraphResults struct {
+	Repositories []SourceGraphRepositories `json:"repositories"`
+}
+
+type SourceGraphRepositories struct {
+	Name string `json:"name"`
+}

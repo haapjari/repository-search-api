@@ -17,6 +17,18 @@ test:
 compile:
 	go build -o ${OUTPUT_PATH} ${MAIN_MODULE}
 
+profile-cpu:
+	go run -cpuprofile cpu.prof ${MAIN_MODULE}
+
+profile-memory:
+	go run -memprofile mem.prof ${MAIN_MODULE}
+
+profile-heap:
+	go run -memprofilerate heap.prof ${MAIN_MODULE}
+
+# profile-analyze:
+# go tool pprof myprof cpu.prof
+
 run-bin:
 	${OUTPUT_PATH}
 

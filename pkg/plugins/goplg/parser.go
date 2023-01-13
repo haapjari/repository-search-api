@@ -81,7 +81,7 @@ func (p *Parser) ParseSourceGraphResponse(data string) (map[string]interface{}, 
 }
 
 // parseLibrariesFromModFile parses the library names from the given go.mod file and returns them as a slice of strings.
-func parseLibrariesFromModFile(modFile string) []string {
+func (p *Parser) ParseDependenciesFromModFile(modFile string) []string {
 	// Split the mod file into lines
 	lines := strings.Split(modFile, "\n")
 
@@ -112,7 +112,7 @@ func parseLibrariesFromModFile(modFile string) []string {
 	}
 
 	// Remove empty strings from the slice of require statements
-	filteredRequires := filterEmpty(requires)
+	filteredRequires := utils.FilterEmpty(requires)
 
 	// Initialize a buffer slice to hold the filtered libraries
 	buf := make([]string, len(filteredRequires))
@@ -133,7 +133,7 @@ func parseLibrariesFromModFile(modFile string) []string {
 }
 
 // Parse the remote locations of inner go.mod files from the project, and save them to a variable.
-func parseInnerModFiles(str string, project string) []string {
+func (p *Parser) ParseInnerModFiles(str string, project string) []string {
 
 	var (
 		innerModFilesString string
@@ -192,11 +192,6 @@ func parseInnerModFiles(str string, project string) []string {
 }
 
 // Check if the project contains inner modfiles.
-func checkInnerModFiles(str string) bool {
-	// replace -keyword means, that the project contains inner modfiles, boolean flag will be turned to true.
-	if strings.Count(str, "replace") > 0 {
-		return true
-	}
-
-	return false
+func (p *Parser) CheckForInnerModFiles(str string) bool {
+	return strings.Count(str, "replace") > 0
 }

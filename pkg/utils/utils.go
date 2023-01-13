@@ -1,15 +1,79 @@
 package utils
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"os"
 	"os/exec"
 	"strings"
-
-	"github.com/haapjari/glass/pkg/models"
 )
+
+// removeDuplicates removes duplicates from a slice of strings
+func RemoveDuplicates(slice []string) []string {
+	// Create a map to keep track of the elements that have already been seen
+	seen := make(map[string]struct{}, len(slice))
+
+	// Initialize the result slice
+	var result []string
+
+	// Iterate over the slice
+	for _, elem := range slice {
+		// Check if the element has already been seen
+		if _, ok := seen[elem]; !ok {
+			// If it has not been seen, add it to the result slice and mark it as seen
+			result = append(result, elem)
+			seen[elem] = struct{}{}
+		}
+	}
+
+	return result
+}
+
+// Filter empty strings from slice.
+func FilterEmpty(slice []string) []string {
+	var result []string
+	for _, s := range slice {
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// Performs a GET request to the specified URL.
+func GetRequest(url string) string {
+	// Make a GET request to the specified URL
+	resp, err := http.Get(url)
+	CheckErr(err)
+
+	defer resp.Body.Close()
+
+	// Read the response body into a variable
+	body, err := ioutil.ReadAll(resp.Body)
+	CheckErr(err)
+
+	return (string(body))
+}
+
+func Command(command string, args ...string) error {
+	cmd := exec.Command(command, args...)
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+
+	err := cmd.Run()
+
+	if err != nil {
+		return fmt.Errorf("Error - %s: %s", err)
+	}
+
+	return nil
+}
 
 func CheckErr(err error) {
 	if err != nil {
@@ -29,58 +93,21 @@ func RemoveCharFromString(str string, chr rune) string {
 	return builder.String()
 }
 
-func RemoveElement(s []models.Repository, index int) []models.Repository {
-	ret := make([]models.Repository, 0)
-	ret = append(ret, s[:index]...)
-	return append(ret, s[index+1:]...)
-}
-
-// Execute in bash shell
-func ExecuteInShell(app string, arg string, target string) []byte {
-	cmd := exec.Command(app, arg, target)
-	out, err := cmd.Output()
-	CheckError(err)
-	return out
-}
-
-func WriteToFile(data any, fileName string) {
-	file, err := json.MarshalIndent(data, "", " ")
-	CheckErr(err)
-
-	err = ioutil.WriteFile(fileName+".json", file, 0644)
-	CheckErr(err)
-}
-
-func Remove(slice []string, i int) []string {
-
-	// Remove the element at index i from a.
-	copy(slice[i:], slice[i+1:]) // Shift a[i+1:] left one index.
-	slice[len(slice)-1] = ""     // Erase last element (write zero value).
-	slice = slice[:len(slice)-1] // Truncate slice.
-
-	return slice
-}
-
-func CheckError(err error) {
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-}
-
 func CopyFile(src string, dst string) error {
-	out, err := exec.Command("cp", src, dst).CombinedOutput()
+	err := Command("cp", src, dst)
 	if err != nil {
-		fmt.Printf("%s\n", out)
+		fmt.Printf("%s\n", err)
 		return err
 	}
 
 	return nil
 }
 
-func RemoveFile(path string) error {
-	out, err := exec.Command("rm", path).CombinedOutput()
+func RemoveFiles(pathsToFiles ...string) error {
+	args := append([]string{"rm"}, pathsToFiles...)
+	err := Command("rm", args...)
 	if err != nil {
-		fmt.Printf("%s\n", out)
+		fmt.Printf("%s\n", err)
 		return err
 	}
 

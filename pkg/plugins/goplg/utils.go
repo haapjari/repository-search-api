@@ -1,14 +1,9 @@
 package goplg
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
-	"net/http"
 	"os"
-	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode"
@@ -19,11 +14,45 @@ import (
 	JSONParser "github.com/tidwall/gjson"
 )
 
-func (g *GoPlugin) writeSourceGraphResponseToDatabase(length int, repositories []SourceGraphRepositoriesStruct) {
+func (g *GoPlugin) updateCoreSize(name string, lines int) {
+	// Copy the repository struct to a new variable.
+	var repositoryStruct models.Repository
+
+	// Find matching repository from the database.
+	if err := g.DatabaseClient.Where("repository_name = ?", name).First(&repositoryStruct).Error; err != nil {
+		utils.CheckErr(err)
+	}
+
+	// Update the OriginalCodebaseSize variable, with calculated value.
+	repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
+
+	// Update the database.
+	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
+}
+
+func (g *GoPlugin) restoreModuleFiles() {
+	utils.RemoveFiles("go.mod", "go.sum")
+	utils.CopyFile("go.mod.bak", "go.mod")
+	utils.CopyFile("go.sum.bak", "go.sum")
+	utils.RemoveFiles("go.mod.bak", "go.sum.bak")
+}
+
+func (g *GoPlugin) resetModuleFiles() {
+	utils.RemoveFiles("go.mod", "go.sum")
+	utils.CopyFile("go.mod.bak", "go.mod")
+	utils.CopyFile("go.sum.bak", "go.sum")
+}
+
+func (g *GoPlugin) saveModuleFiles() {
+	utils.CopyFile("go.mod", "go.mod.bak")
+	utils.CopyFile("go.sum", "go.sum.bak")
+}
+
+func (g *GoPlugin) processSourceGraphResponse(length int, repositories []models.SourceGraphRepositories) {
 	var wg sync.WaitGroup
 
 	// Semaphore is a safeguard to goroutines, to allow only "MaxThreads" run at the same time.
-	semaphore := make(chan int, g.MaxThreads)
+	semaphore := make(chan int, g.MaxRoutines)
 
 	for i := 0; i < length; i++ {
 		semaphore <- 1
@@ -43,59 +72,20 @@ func (g *GoPlugin) writeSourceGraphResponseToDatabase(length int, repositories [
 	for !(len(semaphore) == 0) {
 		continue
 	}
-
 }
 
 // TODO: Refactor, to not to use HTTP requests (?)
-func (g *GoPlugin) getAllRepositories() models.RepositoryResponse {
-	getRepositoriesRequest, err := http.NewRequest("GET", REPOSITORY_API_BASEURL, nil)
-	utils.CheckErr(err)
+func (g *GoPlugin) getAllRepositories() []models.Repository {
+	var repositories []models.Repository
 
-	getRepositoriesRequest.Header.Set("Content-Type", "application/json")
-
-	getRepositoriesResponse, err := g.HttpClient.Do(getRepositoriesRequest)
-	utils.CheckErr(err)
-
-	defer getRepositoriesResponse.Body.Close()
-
-	getRepositoriesResponseBody, err := ioutil.ReadAll(getRepositoriesResponse.Body)
-	utils.CheckErr(err)
-
-	var repositories models.RepositoryResponse
-	json.Unmarshal([]byte(getRepositoriesResponseBody), &repositories)
+	g.DatabaseClient.Find(&repositories)
 
 	return repositories
 }
 
-// Filter empty strings from slice.
-func filterEmpty(slice []string) []string {
-	var result []string
-	for _, s := range slice {
-		if s != "" {
-			result = append(result, s)
-		}
-	}
-	return result
-}
-
-// Performs a GET request to the specified URL.
-func performGetRequest(url string) string {
-	// Make a GET request to the specified URL
-	resp, err := http.Get(url)
-	utils.CheckErr(err)
-
-	defer resp.Body.Close()
-
-	// Read the response body into a variable
-	body, err := ioutil.ReadAll(resp.Body)
-	utils.CheckErr(err)
-
-	return (string(body))
-}
-
 // Calculates the lines of code using https://github.com/hhatto/gocloc
 // in the path provided and return the value.
-func runGocloc(path string) int {
+func (g *GoPlugin) calculateCodeLines(path string) int {
 	languages := gocloc.NewDefinedLanguages()
 	options := gocloc.NewClocOptions()
 
@@ -109,97 +99,18 @@ func runGocloc(path string) int {
 	utils.CheckErr(err)
 
 	return int(result.Total.Code)
+
 }
 
-// Wrapper for "exec/os" command execution.
-// Copied from blog: https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-func runCommand(name string, arg ...string) (string, string) {
-	cmd := exec.Command(name, arg...)
-
-	var stdout, stderr []byte
-	var errStdout, errStderr error
-
-	stdoutIn, _ := cmd.StdoutPipe()
-	stderrIn, _ := cmd.StderrPipe()
-
-	err := cmd.Start()
-	utils.CheckErr(err)
-
-	// WaitGroup ensures, cmd.Wait() is called, after we finish reading from stdin and stdout.
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		stdout, errStdout = copyAndCapture(os.Stdout, stdoutIn)
-		wg.Done()
-	}()
-
-	stderr, errStderr = copyAndCapture(os.Stderr, stderrIn)
-
-	wg.Wait()
-
-	err = cmd.Wait()
-	if err != nil {
-		log.Fatalf("cmd.Run() failed with %s\n", err)
-	}
-
-	if errStdout != nil || errStderr != nil {
-		log.Fatal("failed to capture stdout or stderr\n")
-	}
-
-	outStr, errStr := string(stdout), string(stderr)
-
-	return outStr, errStr
-}
-
-// Helper function for running commands with "os/exec".
-// Copied from blog: https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-func copyAndCapture(w io.Writer, r io.Reader) ([]byte, error) {
-	var out []byte
-	buf := make([]byte, 1024, 1024)
-	for {
-		n, err := r.Read(buf[:])
-		if n > 0 {
-			d := buf[:n]
-			out = append(out, d...)
-			_, err := w.Write(d)
-			if err != nil {
-				return out, err
-			}
-		}
-		if err != nil {
-			// Read returns io.EOF at the end of file, which is not an error for us
-			if err == io.EOF {
-				err = nil
-			}
-			return out, err
-		}
-	}
-}
-
-// removeDuplicates removes duplicates from a slice of strings
-func removeDuplicates(slice []string) []string {
-	// Create a map to keep track of the elements that have already been seen
-	seen := make(map[string]struct{}, len(slice))
-
-	// Initialize the result slice
-	var result []string
-
-	// Iterate over the slice
-	for _, elem := range slice {
-		// Check if the element has already been seen
-		if _, ok := seen[elem]; !ok {
-			// If it has not been seen, add it to the result slice and mark it as seen
-			result = append(result, elem)
-			seen[elem] = struct{}{}
-		}
-	}
-
-	return result
+// Delete the contents of tmp -folder.
+func (g *GoPlugin) pruneTemporaryFolder() {
+	utils.Command("chmod", "-R", "777", utils.GetProcessDirPath())
+	os.RemoveAll(utils.GetProcessDirPath())
+	os.MkdirAll(utils.GetProcessDirPath(), os.ModePerm)
 }
 
 // Parse repository name from url.
-func parseRepositoryName(s string) (string, string, error) {
+func parseName(s string) (string, string, error) {
 	parts := strings.Split(s, "/")
 	if len(parts) < 3 {
 		return "", "", fmt.Errorf("invalid repository string: %s", s)
@@ -208,7 +119,7 @@ func parseRepositoryName(s string) (string, string, error) {
 }
 
 // Creates a slice of repositories, which are duplicates in an original list.
-func findDuplicateRepositoryEntries(repositories []models.Repository) []models.Repository {
+func findDuplicates(repositories []models.Repository) []models.Repository {
 	// Create a map to store the names of the repositories that we've seen so far
 	seenRepositories := make(map[string]bool)
 
@@ -229,27 +140,8 @@ func findDuplicateRepositoryEntries(repositories []models.Repository) []models.R
 	return duplicateEntries
 }
 
-// Check if a folder exists in the file system.
-func folderExists(folderPath string) bool {
-	// Use os.Stat to get the file information for the folder
-	_, err := os.Stat(folderPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// The folder does not exist
-			return false
-		} else {
-			// Some other error occurred
-			fmt.Printf("Error checking if folder exists: %v", err)
-			return false
-		}
-	}
-
-	// The folder exists
-	return true
-}
-
 // Parse "github.com/mholt/archiver/v3 v3.5.1" into the format "github.com/mholt/archiver/v3@v3.5.1"
-func parseUrlToDownloadFormat(input string) string {
+func convertToDownloadableFormat(input string) string {
 	// Split the input string on the first space character
 	parts := strings.SplitN(input, " ", 2)
 	if len(parts) != 2 {
@@ -269,7 +161,7 @@ func hasUppercase(s string) bool {
 	return false
 }
 
-func parseGoLibraryUrl(input string) string {
+func parseLibraryUrl(input string) string {
 	// Split the input string on the first space character
 	parts := strings.SplitN(input, " ", 2)
 	if len(parts) != 2 {
