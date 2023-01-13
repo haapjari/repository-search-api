@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/gin-gonic/gin v1.8.2
 	github.com/hhatto/gocloc v0.4.3
+	github.com/pingcap/errors v0.11.4
 	github.com/prometheus/client_golang v1.14.0
 	github.com/spf13/viper v1.14.0
 	github.com/tidwall/gjson v1.14.4

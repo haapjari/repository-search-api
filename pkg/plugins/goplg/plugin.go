@@ -133,9 +133,13 @@ func (g *GoPlugin) processRepositories() {
 				continue
 			}
 
-			lines := g.calculateCodeLines("tmp/" + repo.RepositoryName)
+			lin, err := g.calculateCodeLines("tmp/" + repo.RepositoryName)
+			if err != nil {
+				fmt.Printf(err.Error())
+				continue
+			}
 
-			g.updateCoreSize(repo.RepositoryName, lines)
+			g.updateCoreSize(repo.RepositoryName, lin)
 		}
 		g.pruneTemporaryFolder()
 	}
@@ -149,7 +153,9 @@ func (g *GoPlugin) processLibraries() {
 	libs := g.generateDependenciesMap(r)
 
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
-	g.saveModuleFiles()
+
+	utils.CopyFile("go.mod", "go.mod.bak")
+	utils.CopyFile("go.sum", "go.sum.bak")
 
 	// Loop through repositories.
 	for i := 0; i < len(r); i++ {
@@ -160,24 +166,33 @@ func (g *GoPlugin) processLibraries() {
 		// are accessible by repository name. Download them to the local disk, calculate
 		// their sizes and append to the 'l' -variable.
 		for j := 0; j < len(libs[name]); j++ {
-			err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
-			if err != nil {
-				fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
-				continue
-			}
-
 			// Check wether the library is already analyzed from the cache. If library
-			// is not yet analyzed, analyze it and save the values to the 'cache'.
+			// is not yet analyzed, download it analyze it and save the values to the 'cache'.
 			if value, ok := g.LibraryCache[libs[name][j]]; ok {
 				l += value
 			} else {
-				g.LibraryCache[libs[name][j]] = g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
+				err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
+				if err != nil {
+					fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
+					continue
+				}
+
+				lin, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
+				if err != nil {
+					fmt.Println(err.Error())
+					continue
+				}
+
+				g.LibraryCache[libs[name][j]] = lin
 				l += g.LibraryCache[libs[name][j]]
 			}
 		}
 
 		g.pruneTemporaryFolder()
-		g.resetModuleFiles()
+
+		utils.RemoveFiles("go.mod", "go.sum")
+		utils.CopyFile("go.mod.bak", "go.mod")
+		utils.CopyFile("go.sum.bak", "go.sum")
 
 		var repositoryStruct models.Repository
 
@@ -190,7 +205,11 @@ func (g *GoPlugin) processLibraries() {
 	}
 
 	os.Setenv("GOPATH", utils.GetDefaultGoPath())
-	g.restoreModuleFiles()
+
+	utils.RemoveFiles("go.mod", "go.sum")
+	utils.CopyFile("go.mod.bak", "go.mod")
+	utils.CopyFile("go.sum.bak", "go.sum")
+	utils.RemoveFiles("go.mod.bak", "go.sum.bak")
 }
 
 // ************************************************************* //
