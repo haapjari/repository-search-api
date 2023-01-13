@@ -109,6 +109,7 @@ func runGocloc(path string) int {
 	utils.CheckErr(err)
 
 	return int(result.Total.Code)
+
 }
 
 // Delete the contents of tmp/ -folder.

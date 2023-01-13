@@ -529,6 +529,7 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	repoCount := len(repos)
 	tempGoPath := utils.GetTempGoPath()
 	goPath := utils.GetGoPath()
+	var cache = make(map[string]int)
 
 	// Change GOPATH to point to temporary directory.
 	os.Setenv("GOPATH", tempGoPath)
@@ -581,21 +582,31 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 				}
 
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
-					c <- runGocloc(utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[name][j]))
-					fmt.Println("Filling the channel")
+					// check cache for the value
+					if value, ok := cache[libs[name][j]]; ok {
+						c <- value
+					} else {
+						lin := runGocloc(utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[name][j]))
+						cache[libs[name][j]] = lin
+						c <- lin
+					}
 				}
 
-				fmt.Println("Reading phase")
-
+				var wg sync.WaitGroup
+				var once sync.Once
+				wg.Add(1)
 				go func(l *int) {
 					for value := range c {
 						*l += value
-						fmt.Println("Reading the values from channel")
 					}
+					wg.Done()
 				}(&l)
+				go func() {
+					wg.Wait()
+					once.Do(func() { close(c) })
+				}()
 
 				pruneTempGoPath()
-				close(c)
 			}
 		}
 
