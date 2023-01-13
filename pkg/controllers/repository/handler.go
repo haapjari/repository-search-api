@@ -87,13 +87,12 @@ func (h *Handler) HandleUpdateRepositoryById() {
 	h.Context.JSON(http.StatusOK, gin.H{"data": r})
 }
 
-func (h *Handler) FetchRepositoryMetadata() {
+func (h *Handler) HandleGetRepositoryMetadata() {
 	var count, err = strconv.Atoi(h.Context.Query("count"))
 	utils.CheckErr(err)
 
 	if h.Context.Query("type") == "go" {
 		plugin := goplg.NewGoPlugin(h.Database)
-
-		plugin.GetRepositoryMetadata(count)
+		plugin.GenerateRepositoryData(count)
 	}
 }

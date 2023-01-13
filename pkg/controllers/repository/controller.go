@@ -38,12 +38,11 @@ func UpdateRepositoryById(c *gin.Context) {
 	h.HandleUpdateRepositoryById()
 }
 
-// TODO
-func FetchRepositories(c *gin.Context) {
+func GetRepositoryMetadata(c *gin.Context) {
 	h := NewHandler(c)
 
 	if c.Query("type") == "go" {
-		h.FetchRepositoryMetadata()
+		h.HandleGetRepositoryMetadata()
 	}
 
 	if !(c.Query("type") == "go") {

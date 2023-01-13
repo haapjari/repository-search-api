@@ -8,32 +8,18 @@ import (
 
 // Single Point in Program to Fetch all the Environment Variables.
 
-func GetRepositoryApiBaseUrl() string {
+func GetBaseUrl() string {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()
 
-	return fmt.Sprint(viper.Get("REPOSITORY_API_BASEURL"))
+	return fmt.Sprint(viper.Get("BASEURL"))
 }
 
-func GetMaxRoutines() string {
+func GetMaxGoRoutines() string {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()
 
-	return fmt.Sprint(viper.Get("MAX_ROUTINES"))
-}
-
-func GetBatchSize() string {
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
-
-	return fmt.Sprint(viper.Get("BATCH_SIZE"))
-}
-
-func GetLocalenv() string {
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
-
-	return fmt.Sprint(viper.Get("LOCAL_ENV"))
+	return fmt.Sprint(viper.Get("MAX_GOROUTINES"))
 }
 
 func GetDatabaseUser() interface{} {
@@ -43,35 +29,28 @@ func GetDatabaseUser() interface{} {
 	return viper.Get("POSTGRES_USER")
 }
 
-func GetBaseurl() string {
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
-
-	return fmt.Sprint(viper.Get("BASEURL"))
-}
-
-func GetGithubGraphQlApiBaseurl() string {
+func GetGitHubGQLApi() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
 
-	return fmt.Sprint(viper.Get("GITHUB_GRAPHQL_API_BASEURL"))
+	return fmt.Sprint(viper.Get("GITHUB_GRAPHQL_API"))
 }
 
-func GetSourceGraphGraphQlApiBaseurl() string {
+func GetSourceGraphGQLApi() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
 
-	return fmt.Sprint(viper.Get("SOURCEGRAPH_GRAPHQL_API_BASEURL"))
+	return fmt.Sprint(viper.Get("SOURCEGRAPH_GRAPHQL_API"))
 }
 
-func GetTempGoPath() string {
+func GetProcessDirPath() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
 
-	return fmt.Sprint(viper.Get("TEMP_GOPATH"))
+	return fmt.Sprint(viper.Get("PROCESS_DIR"))
 }
 
-func GetGoPath() string {
+func GetDefaultGoPath() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
 
@@ -106,11 +85,11 @@ func GetDatabasePort() interface{} {
 	return viper.Get("POSTGRES_PORT")
 }
 
-func GetGithubApiToken() interface{} {
+func GetGithubToken() interface{} {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()
 
-	return viper.Get("GITHUB_API_TOKEN")
+	return viper.Get("GITHUB_TOKEN")
 }
 
 func GetGithubUsername() interface{} {
