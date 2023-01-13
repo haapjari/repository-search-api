@@ -166,6 +166,11 @@ func hasUppercase(s string) bool {
 	return false
 }
 
+// Parses the input string to correct format.
+// Input: "github.com/example/component v1.0.0"
+// Output: "github.com/example/component@v1.0.0"
+// Input: "github.com/example/Component v1.0.0"
+// Output: "github.com/example/!component@v1.0.0"
 func parseLibraryUrl(input string) string {
 	// Split the input string on the first space character
 	parts := strings.SplitN(input, " ", 2)
@@ -176,16 +181,17 @@ func parseLibraryUrl(input string) string {
 	// Split the package name on the '/' character
 	packageNameParts := strings.Split(parts[0], "/")
 
-	// Add the '!' prefix and lowercase each part of the package name
+	// Add the '!' prefix and lowercase each upper character, of the package name
 	for i, part := range packageNameParts {
-		// Split the part on each uppercase character
-		subParts := strings.Split(part, "")
-		for j, subPart := range subParts {
-			if hasUppercase(subPart) {
-				subParts[j] = "!" + strings.ToLower(subPart)
+		modifiedPart := ""
+		for _, subPart := range part {
+			if unicode.IsUpper(subPart) {
+				modifiedPart += "!" + strings.ToLower(string(subPart))
+			} else {
+				modifiedPart += string(subPart)
 			}
 		}
-		packageNameParts[i] = strings.Join(subParts, "")
+		packageNameParts[i] = modifiedPart
 	}
 
 	// Join the modified package name parts with '/' characters
