@@ -529,8 +529,6 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	repoCount := len(repos)
 	tempGoPath := utils.GetTempGoPath()
 	goPath := utils.GetGoPath()
-	var wg sync.WaitGroup
-	var libMutex sync.Mutex
 
 	// Change GOPATH to point to temporary directory.
 	os.Setenv("GOPATH", tempGoPath)
@@ -562,16 +560,17 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	*/
 
 	for i := 0; i < repoCount; i++ {
-		repoName := repos[i].RepositoryName
-		reposLibCount := len(libs[repoName])
-		libCodeLines := make(chan int)
+		name := repos[i].RepositoryName
+		count := len(libs[name])
+		l := 0
 
-		for z := 0; z < reposLibCount; z++ {
-			if z != 0 && (z+1)%g.BatchSize == 0 || z == reposLibCount-1 {
+		for z := 0; z < count; z++ {
+			if z != 0 && (z+1)%g.BatchSize == 0 || z == count-1 {
+				c := make(chan int, count)
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
-					libUrl := parseUrlToDownloadFormat(libs[repoName][j])
+					url := parseUrlToDownloadFormat(libs[name][j])
 
-					out, err := runCommand("go", "get", "-d", "-v", libUrl)
+					out, err := runCommand("go", "get", "-d", "-v", url)
 					if out != "" {
 						fmt.Println(out)
 					}
@@ -582,34 +581,25 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 				}
 
 				for j := z - (g.BatchSize - 1); j <= z; j++ {
-					wg.Add(1)
-					go func(j int) {
-
-						libMutex.Lock()
-						libPath := utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[repoName][j])
-						libMutex.Unlock()
-
-						lines := runGocloc(libPath)
-
-						libCodeLines <- lines
-
-						wg.Done()
-					}(j)
+					c <- runGocloc(utils.GetTempGoPath() + "/" + "pkg/mod" + "/" + parseGoLibraryUrl(libs[name][j]))
+					fmt.Println("Filling the channel")
 				}
 
-				wg.Wait()
+				fmt.Println("Reading phase")
+
+				go func(l *int) {
+					for value := range c {
+						*l += value
+						fmt.Println("Reading the values from channel")
+					}
+				}(&l)
+
 				pruneTempGoPath()
+				close(c)
 			}
 		}
 
-		var libCodeLinesInt int
-
-		for val := range libCodeLines {
-			libCodeLinesInt += val
-		}
-
-		close(libCodeLines)
-		g.updateLibraryCodeLinesToDatabase(repoName, libCodeLinesInt)
+		g.updateLibraryCodeLinesToDatabase(name, l)
 
 		utils.RemoveFile("go.mod")
 		utils.RemoveFile("go.sum")
@@ -627,11 +617,6 @@ func (g *GoPlugin) downloadGoLibraries(repos []models.Repository, libs map[strin
 	utils.CopyFile("go.sum.bak", "go.sum")
 	utils.RemoveFile("go.mod.bak")
 	utils.RemoveFile("go.sum.bak")
-
-	// Prune the tmp/ folder, if we arent in development mode.
-	// 	if !(utils.GetLocalenv() == "development") {
-	// os.RemoveAll(utils.GetTempGoPath())
-	//	}
 }
 
 // TODO
