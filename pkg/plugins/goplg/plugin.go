@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/haapjari/glass/pkg/models"
@@ -135,7 +136,7 @@ func (g *GoPlugin) processRepositories() {
 
 			lin, err := g.calculateCodeLines("tmp/" + repo.RepositoryName)
 			if err != nil {
-				fmt.Printf(err.Error())
+				fmt.Print(err.Error())
 				continue
 			}
 
@@ -162,31 +163,65 @@ func (g *GoPlugin) processLibraries() {
 		name := r[i].RepositoryName
 		l := 0
 
+		var wg sync.WaitGroup
+		var mux sync.RWMutex
+		var sem = make(chan struct{}, g.MaxRoutines)
+		var semCount int64
+
 		// Loop through the libraries, which are saved to the map, where dependencies
 		// are accessible by repository name. Download them to the local disk, calculate
 		// their sizes and append to the 'l' -variable.
 		for j := 0; j < len(libs[name]); j++ {
-			// Check wether the library is already analyzed from the cache. If library
-			// is not yet analyzed, download it analyze it and save the values to the 'cache'.
-			if value, ok := g.LibraryCache[libs[name][j]]; ok {
-				l += value
-			} else {
-				err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
-				if err != nil {
-					fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
-					continue
-				}
+			semCount++
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(j int) {
+				// When the concurrently running goroutines is zero, we'll close the sem
+				// channel, in order to avoid a memory leak, because sem is initialized
+				// for every repository.
+				defer func() {
+					<-sem
+					// Using the atomic package here is important, as it's being accessed
+					// by multiple goroutines and we need to ensure that the value of semCount
+					// is read and written atomically, otherwise, we may end up with a race condition.
+					atomic.AddInt64(&semCount, -1)
+					if atomic.LoadInt64(&semCount) == 0 {
+						close(sem)
+					}
+					wg.Done()
+				}()
 
-				lin, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
-				if err != nil {
-					fmt.Println(err.Error())
-					continue
-				}
+				mux.RLock()
+				value, ok := g.LibraryCache[libs[name][j]]
+				mux.RUnlock()
+				if ok {
+					mux.Lock()
+					l += value
+					mux.Unlock()
+					return
+				} else {
+					mux.Lock()
+					err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
+					if err != nil {
+						fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
+						return
+					}
+					mux.Unlock()
 
-				g.LibraryCache[libs[name][j]] = lin
-				l += g.LibraryCache[libs[name][j]]
-			}
+					lin, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
+					if err != nil {
+						fmt.Println(err.Error())
+						return
+					}
+
+					mux.Lock()
+					g.LibraryCache[libs[name][j]] = lin
+					l += lin
+					mux.Unlock()
+				}
+			}(j)
 		}
+		wg.Wait()
 
 		g.pruneTemporaryFolder()
 
