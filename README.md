@@ -55,6 +55,8 @@ MAX_GOROUTINES=
 
 # Notes
 
+- Implementation might have issues, since I am implementing concurrency for the first time.
+
 ## TODO
 
 - Docker: compose -file for PostgreSQL and Environment Variables.
@@ -75,9 +77,15 @@ MAX_GOROUTINES=
 
 **14.1.2023**
 
+These Benchmark's are, when "go get" is protected with Mutexes.
+
 - Benchmark, 1 repository: 175 sec, 118 sec, 90 sec (64 routines), 85 sec (128 Routines)
 - Benchmark, 5 repositories: 575 sec (115s / repository)
-- Benchmark, 1 repository: 146 sec (16 routines)
+- Benchmark, 1 repository: 146 sec (16 routines), 105 seconds (64 routines)
+- Benchmark, 10 repositories: 543 seconds (64 routines), (54,3 seconds per repository)
+- Benchmark, 25 repositories: 381 seconds (15 seconds per repostiory)
+
+Note: 4619596
 
 ---
 

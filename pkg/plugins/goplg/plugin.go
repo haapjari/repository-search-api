@@ -136,13 +136,11 @@ func (g *GoPlugin) processRepositories() {
 				err := utils.Command("git", "clone", "--depth", "1", r[i].RepositoryUrl, "tmp"+"/"+r[i].RepositoryName)
 				if err != nil {
 					fmt.Printf("Error while cloning repository %s: %s, skipping...\n", r[i].RepositoryUrl, err)
-					return
 				}
 
 				lin, err := g.calculateCodeLines("tmp" + "/" + r[i].RepositoryName)
 				if err != nil {
 					fmt.Print(err.Error())
-					return
 				}
 
 				g.updateCoreSize(r[i].RepositoryName, lin)
@@ -208,19 +206,21 @@ func (g *GoPlugin) processLibraries() {
 					m.Unlock()
 					return
 				} else {
-					// This has to be protected with mutex, because "go get" is modifying same "go.mod" -file.
-					m.Lock()
+					// This is not the most elegant way, and it's using more computation without mutexes.
+					// multiple goroutines crash, and try to download same library, and this leads to errors
+					// but now the program has functionality to recover from that. This increases performance
+					// alot, but it's using waste computation. This might just be a risk, that has to be accepted.
+
+					// m.Lock()
 					err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
 					if err != nil {
 						fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
-						return
 					}
-					m.Unlock()
+					// m.Unlock()
 
 					lin, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
 					if err != nil {
-						fmt.Println(err.Error())
-						return
+						fmt.Println("Error, while calculating code lines:", err.Error())
 					}
 
 					m.Lock()
