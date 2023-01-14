@@ -77,7 +77,7 @@ MAX_GOROUTINES=
 
 - Benchmark, 1 repository: 175 sec, 118 sec, 90 sec (64 routines), 85 sec (128 Routines)
 - Benchmark, 5 repositories: 575 sec (115s / repository)
-- Benchmark, 
+- Benchmark, 1 repository: 146 sec (16 routines)
 
 ---
 

@@ -114,6 +114,7 @@ func (g *GoPlugin) fetchRepositories(count int) {
 func (g *GoPlugin) processRepositories() {
 	r := g.getAllRepositories()
 	var wg sync.WaitGroup
+	s := make(chan int, g.MaxRoutines)
 
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
 		if err := os.Mkdir("tmp", 0777); err != nil {
@@ -123,12 +124,14 @@ func (g *GoPlugin) processRepositories() {
 
 	// Append the https:// and .git prefix and postfix the RepositoryUrl variables.
 	for i := 0; i < len(r); i++ {
-
 		r[i].RepositoryUrl = "https://" + r[i].RepositoryUrl + ".git"
-
+		s <- 1
 		wg.Add(1)
 		go func(i int) {
-			defer wg.Done()
+			defer func() {
+				wg.Done()
+				<-s
+			}()
 			if r[i].OriginalCodebaseSize == "" {
 				err := utils.Command("git", "clone", "--depth", "1", r[i].RepositoryUrl, "tmp"+"/"+r[i].RepositoryName)
 				if err != nil {
@@ -149,6 +152,13 @@ func (g *GoPlugin) processRepositories() {
 
 		g.pruneTemporaryFolder()
 	}
+
+	// When the Channel Length is not 0, there is still running Threads.
+	for !(len(s) == 0) {
+		continue
+	}
+
+	close(s)
 }
 
 // Loop through repositories, generate the dependency map from the go.mod files of the
@@ -161,6 +171,7 @@ func (g *GoPlugin) processLibraries() {
 	libs := g.generateDependenciesMap(r)
 	var wg sync.WaitGroup
 	var m sync.RWMutex
+	s := make(chan int, g.MaxRoutines)
 
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
 
@@ -171,6 +182,7 @@ func (g *GoPlugin) processLibraries() {
 	for i := 0; i < len(r); i++ {
 		name := r[i].RepositoryName
 		l := 0
+		s <- 1
 
 		// Loop through the libraries, which are saved to the map, where dependencies
 		// are accessible by repository name. Download them to the local disk, calculate
@@ -182,7 +194,10 @@ func (g *GoPlugin) processLibraries() {
 				// When the concurrently running goroutines is zero, we'll close the sem
 				// channel, in order to avoid a memory leak, because sem is initialized
 				// for every repository.
-				defer wg.Done()
+				defer func() {
+					wg.Done()
+					<-s
+				}()
 
 				m.RLock()
 				value, ok := g.LibraryCache[libs[name][j]]
@@ -232,6 +247,13 @@ func (g *GoPlugin) processLibraries() {
 		repositoryStruct.LibraryCodebaseSize = strconv.Itoa(l)
 		g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
 	}
+
+	// When the Channel Length is not 0, there is still running Threads.
+	for !(len(s) == 0) {
+		continue
+	}
+
+	close(s)
 
 	os.Setenv("GOPATH", utils.GetDefaultGoPath())
 
