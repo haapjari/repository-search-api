@@ -58,8 +58,12 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 // Fetch Repositories and Enrich the Repositories with Metadata.
 func (g *GoPlugin) GenerateRepositoryData(c int) {
 	g.fetchRepositories(c)
-	g.processRepositories()
-	g.processLibraries()
+
+	// TODO: These doesn't have "support for persistent analysis"
+	// g.pruneDuplicates()
+	// g.pruneLanguages()
+	// g.processRepositories()
+	// g.processLibraries()
 }
 
 // ************************************************************* //
@@ -104,17 +108,142 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	var response models.SourceGraphResponseStruct
 	json.Unmarshal([]byte(responseBody), &response)
 
-	g.processSourceGraphResponse(len(response.Data.Search.Results.Repositories), response.Data.Search.Results.Repositories)
-	g.enrichWithPrimaryRepositoryData()
-	g.pruneDuplicates()
+	// *** //
+
+	length := len(response.Data.Search.Results.Repositories)
+	repos := response.Data.Search.Results.Repositories
+
+	// var wg sync.WaitGroup
+	// s := make(chan int, g.MaxRoutines)
+
+	// Write the repositories to the database, avoid writing duplicates.
+	for i := 0; i < length; i++ {
+		//		s <- 1
+		//wg.Add(1)
+		//go func(i int) {
+		r := models.Repository{RepositoryName: repos[i].Name, RepositoryUrl: repos[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
+		if !g.checkIfRepositoryExists(r) {
+			g.DatabaseClient.Create(&r)
+		}
+		//defer func() { <-s }()
+		//	}(i)
+		//wg.Done()
+	}
+
+	//	wg.Wait()
+
+	//	for !(len(s) == 0) {
+	//
+	// continue
+	// }
+
+	// *** //
+
+	databaseSnapshot := g.getAllRepositories()
+
+	// Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
+	// repositories, and appends the database entries with Open Issue Count, Closed Issue Count,
+	// Commit Count, Original Codebase Size, Repository Type, Primary Language, Stargazers Count,
+	// Creation Date, License.
+	for i := 0; i < len(databaseSnapshot); i++ {
+		if !g.hasBeenEnriched(databaseSnapshot[i]) {
+
+			fmt.Println(databaseSnapshot[i].RepositoryUrl)
+			fmt.Println("Repo has not been enriched.")
+
+			repositoryOwner, repositoryName := g.Parser.ParseRepository(databaseSnapshot[i].RepositoryUrl)
+
+			queryStr := fmt.Sprintf(`{
+					repository(owner: "%s", name: "%s") {
+						defaultBranchRef {
+							target {
+								... on Commit {
+								history {
+									totalCount
+								}
+							}
+						}
+					}	
+					openIssues: issues(states:OPEN) {
+						totalCount
+					}
+					closedIssues: issues(states:CLOSED) {
+						totalCount
+					}
+					languages {
+						totalSize
+					}
+					stargazerCount
+					licenseInfo {
+						key
+					}
+					createdAt
+					latestRelease{
+						publishedAt
+					}
+					primaryLanguage{
+						name
+					}
+				}
+			}`, repositoryOwner, repositoryName)
+
+			rawRequestBody := map[string]string{
+				"query": queryStr,
+			}
+
+			requestBody, err := json.Marshal(rawRequestBody)
+			utils.CheckErr(err)
+
+			b := bytes.NewBuffer(requestBody)
+
+			githubRequest, err := http.NewRequest("POST", GITHUB_GRAPHQL_API_BASEURL, b)
+			utils.CheckErr(err)
+
+			githubRequest.Header.Set("Accept", "application/vnd.github.v3+json")
+
+			githubResponse, err := g.GitHubClient.Do(githubRequest)
+			utils.CheckErr(err)
+
+			defer githubResponse.Body.Close()
+
+			githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
+			utils.CheckErr(err)
+
+			var githubResponseStruct models.GitHubResponseStruct
+			json.Unmarshal([]byte(githubResponseBody), &githubResponseStruct)
+
+			// Start Updating Values.
+
+			var existingResponseStruct models.Repository
+
+			if err := g.DatabaseClient.Where("repository_name = ?", databaseSnapshot[i].RepositoryName).First(&existingResponseStruct).Error; err != nil {
+				utils.CheckErr(err)
+			}
+
+			existingResponseStruct.RepositoryName = repositoryName
+			existingResponseStruct.RepositoryUrl = databaseSnapshot[i].RepositoryUrl
+			existingResponseStruct.OpenIssueCount = strconv.Itoa(githubResponseStruct.Data.Repository.OpenIssues.TotalCount)
+			existingResponseStruct.ClosedIssueCount = strconv.Itoa(githubResponseStruct.Data.Repository.ClosedIssues.TotalCount)
+			existingResponseStruct.CommitCount = strconv.Itoa(githubResponseStruct.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
+			existingResponseStruct.RepositoryType = "primary"
+			existingResponseStruct.PrimaryLanguage = githubResponseStruct.Data.Repository.PrimaryLanguage.Name
+			existingResponseStruct.CreationDate = githubResponseStruct.Data.Repository.CreatedAt
+			existingResponseStruct.StargazerCount = strconv.Itoa(githubResponseStruct.Data.Repository.StargazerCount)
+			existingResponseStruct.LicenseInfo = githubResponseStruct.Data.Repository.LicenseInfo.Key
+			existingResponseStruct.LatestRelease = githubResponseStruct.Data.Repository.LatestRelease.PublishedAt
+
+			g.DatabaseClient.Model(&existingResponseStruct).Updates(existingResponseStruct)
+		}
+	}
 }
 
 // Process repositories, fetch metadata and calculate how many lines of code there are
 // in the repository.
 func (g *GoPlugin) processRepositories() {
 	r := g.getAllRepositories()
-	var wg sync.WaitGroup
-	s := make(chan int, g.MaxRoutines)
+
+	// var wg sync.WaitGroup
+	// s := make(chan int, g.MaxRoutines)
 
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
 		if err := os.Mkdir("tmp", 0777); err != nil {
@@ -124,39 +253,35 @@ func (g *GoPlugin) processRepositories() {
 
 	// Append the https:// and .git prefix and postfix the RepositoryUrl variables.
 	for i := 0; i < len(r); i++ {
-		r[i].RepositoryUrl = "https://" + r[i].RepositoryUrl + ".git"
-		s <- 1
-		wg.Add(1)
-		go func(i int) {
-			defer func() {
-				wg.Done()
-				<-s
-			}()
-			if r[i].OriginalCodebaseSize == "" {
-				err := utils.Command("git", "clone", "--depth", "1", r[i].RepositoryUrl, "tmp"+"/"+r[i].RepositoryName)
-				if err != nil {
-					fmt.Printf("Error while cloning repository %s: %s, skipping...\n", r[i].RepositoryUrl, err)
-				}
+		name := r[i].RepositoryName
 
-				lin, err := g.calculateCodeLines("tmp" + "/" + r[i].RepositoryName)
-				if err != nil {
-					fmt.Print(err.Error())
-				}
+		// Fetching a real time version of the repository, from the database, and checking against fields
+		// of that, instead of checking against fields of copy, which have been modified in this function.
+		var databaseVersion models.Repository
+		if err := g.DatabaseClient.Where("repository_name = ?", name).First(&databaseVersion).Error; err != nil {
+			log.Print("repository " + r[i].RepositoryName + " doesn't exist in the database")
+		}
 
-				g.updateCoreSize(r[i].RepositoryName, lin)
+		// Check, wether this has been already analyzed, and skip unnecessary analysis.
+		if databaseVersion.OriginalCodebaseSize == "" {
+			log.Print("Processing Repository: " + r[i].RepositoryName)
+
+			r[i].RepositoryUrl = "https://" + r[i].RepositoryUrl + ".git"
+
+			err := utils.Command("git", "clone", "--depth", "1", r[i].RepositoryUrl, "tmp"+"/"+r[i].RepositoryName)
+			if err != nil {
+				fmt.Printf("Error while cloning repository %s: %s, skipping...\n", r[i].RepositoryUrl, err)
 			}
-		}(i)
-		wg.Wait()
 
-		g.pruneTemporaryFolder()
+			lin, err := g.calculateCodeLines("tmp" + "/" + r[i].RepositoryName)
+			if err != nil {
+				fmt.Print(err.Error())
+			}
+
+			g.updateCoreSize(r[i].RepositoryName, lin)
+			g.pruneTemporaryFolder()
+		}
 	}
-
-	// When the Channel Length is not 0, there is still running Threads.
-	for !(len(s) == 0) {
-		continue
-	}
-
-	close(s)
 }
 
 // Loop through repositories, generate the dependency map from the go.mod files of the
@@ -283,7 +408,6 @@ func (g *GoPlugin) pruneDuplicates() {
 		g.DatabaseClient.Delete(&r)
 	}
 
-	g.pruneLanguages()
 }
 
 func (g *GoPlugin) pruneLanguages() {
@@ -295,119 +419,6 @@ func (g *GoPlugin) pruneLanguages() {
 			g.DatabaseClient.Delete(repo)
 		}
 
-	}
-}
-
-// Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
-// repositories, and appends the database entries with Open Issue Count, Closed Issue Count,
-// Commit Count, Original Codebase Size, Repository Type, Primary Language, Stargazers Count,
-// Creation Date, License.
-func (g *GoPlugin) enrichWithPrimaryRepositoryData() {
-	r := g.getAllRepositories()
-	c := len(r)
-	s := make(chan int, g.MaxRoutines)
-	var wg sync.WaitGroup
-
-	for i := 0; i < c; i++ {
-		s <- 1
-		wg.Add(1)
-
-		go func(i int) {
-			owner, name := g.Parser.ParseRepository(r[i].RepositoryUrl)
-
-			queryStr := fmt.Sprintf(`{
-					repository(owner: "%s", name: "%s") {
-						defaultBranchRef {
-							target {
-								... on Commit {
-								history {
-									totalCount
-								}
-							}
-						}
-					}	
-					openIssues: issues(states:OPEN) {
-						totalCount
-					}
-					closedIssues: issues(states:CLOSED) {
-						totalCount
-					}
-					languages {
-						totalSize
-					}
-					stargazerCount
-					licenseInfo {
-						key
-					}
-					createdAt
-					latestRelease{
-						publishedAt
-					}
-					primaryLanguage{
-						name
-					}
-				}
-			}`, owner, name)
-
-			rawRequestBody := map[string]string{
-				"query": queryStr,
-			}
-
-			requestBody, err := json.Marshal(rawRequestBody)
-			utils.CheckErr(err)
-
-			b := bytes.NewBuffer(requestBody)
-
-			githubRequest, err := http.NewRequest("POST", GITHUB_GRAPHQL_API_BASEURL, b)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			githubRequest.Header.Set("Accept", "application/vnd.github.v3+json")
-
-			githubResponse, err := g.GitHubClient.Do(githubRequest)
-			utils.CheckErr(err)
-
-			defer githubResponse.Body.Close()
-
-			githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
-			utils.CheckErr(err)
-
-			var newResponseStruct models.GitHubResponseStruct
-			json.Unmarshal([]byte(githubResponseBody), &newResponseStruct)
-
-			var existingResponseStruct models.Repository
-
-			if err := g.DatabaseClient.Where("id = ?", r[i].Id).First(&existingResponseStruct).Error; err != nil {
-				utils.CheckErr(err)
-			}
-
-			var newRepositoryStruct models.Repository
-
-			newRepositoryStruct.RepositoryName = name
-			newRepositoryStruct.RepositoryUrl = r[i].RepositoryUrl
-			newRepositoryStruct.OpenIssueCount = strconv.Itoa(newResponseStruct.Data.Repository.OpenIssues.TotalCount)
-			newRepositoryStruct.ClosedIssueCount = strconv.Itoa(newResponseStruct.Data.Repository.ClosedIssues.TotalCount)
-			newRepositoryStruct.CommitCount = strconv.Itoa(newResponseStruct.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
-			newRepositoryStruct.RepositoryType = "primary"
-			newRepositoryStruct.PrimaryLanguage = newResponseStruct.Data.Repository.PrimaryLanguage.Name
-			newRepositoryStruct.CreationDate = newResponseStruct.Data.Repository.CreatedAt
-			newRepositoryStruct.StargazerCount = strconv.Itoa(newResponseStruct.Data.Repository.StargazerCount)
-			newRepositoryStruct.LicenseInfo = newResponseStruct.Data.Repository.LicenseInfo.Key
-			newRepositoryStruct.LatestRelease = newResponseStruct.Data.Repository.LatestRelease.PublishedAt
-
-			g.DatabaseClient.Model(&existingResponseStruct).Updates(newRepositoryStruct)
-
-			defer func() { <-s }()
-		}(i)
-		wg.Done()
-	}
-
-	wg.Wait()
-
-	// When the Channel Length is not 0, there is still running Threads.
-	for !(len(s) == 0) {
-		continue
 	}
 }
 

@@ -2,11 +2,9 @@ package goplg
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode"
 
 	"github.com/haapjari/glass/pkg/models"
@@ -36,7 +34,7 @@ func (g *GoPlugin) checkIfRepositoryExists(r models.Repository) bool {
 	existingRepos := g.getAllRepositories()
 
 	for _, existingRepo := range existingRepos {
-		if existingRepo.RepositoryName == r.RepositoryName {
+		if existingRepo.RepositoryUrl == r.RepositoryUrl {
 			return true
 		}
 	}
@@ -44,40 +42,18 @@ func (g *GoPlugin) checkIfRepositoryExists(r models.Repository) bool {
 	return false
 }
 
-func (g *GoPlugin) processSourceGraphResponse(length int, repositories []models.SourceGraphRepositories) {
-	var wg sync.WaitGroup
+func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
+	existingRepos := g.getAllRepositories()
 
-	// Semaphore is a safeguard to goroutines, to allow only "MaxThreads" run at the same time.
-	semaphore := make(chan int, g.MaxRoutines)
-
-	for i := 0; i < length; i++ {
-		semaphore <- 1
-		wg.Add(1)
-
-		go func(i int) {
-			r := models.Repository{RepositoryName: repositories[i].Name, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
-
-			flag := g.checkIfRepositoryExists(r)
-
-			// Check wether the repository exists, so we won't create duplicates.
-			if !flag {
-				g.DatabaseClient.Create(&r)
+	for _, existingRepo := range existingRepos {
+		if existingRepo.RepositoryUrl == r.RepositoryUrl {
+			if existingRepo.OpenIssueCount == "" && existingRepo.ClosedIssueCount == "" && existingRepo.CommitCount == "" && existingRepo.RepositoryType == "" && existingRepo.PrimaryLanguage == "" && existingRepo.CreationDate == "" && existingRepo.StargazerCount == "" && existingRepo.LicenseInfo == "" && existingRepo.LatestRelease == "" {
+				return false
 			}
-
-			if flag {
-				log.Print("error: repository " + r.RepositoryName + " already exists.")
-			}
-
-			defer func() { <-semaphore }()
-		}(i)
-		wg.Done()
+		}
 	}
-	wg.Wait()
 
-	// When the Channel Length is not 0, there is still running goroutines.
-	for !(len(semaphore) == 0) {
-		continue
-	}
+	return true
 }
 
 func (g *GoPlugin) getAllRepositories() []models.Repository {
