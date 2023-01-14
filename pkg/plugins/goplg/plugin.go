@@ -200,6 +200,7 @@ func (g *GoPlugin) processLibraries() {
 					mux.Unlock()
 					return
 				} else {
+					// This has to be protected with mutex, because "go get" is modifying same "go.mod" -file.
 					mux.Lock()
 					err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
 					if err != nil {
