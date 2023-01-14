@@ -70,6 +70,8 @@ func (g *GoPlugin) GenerateRepositoryData(c int) {
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
 // parses the repository location to the database table.
 func (g *GoPlugin) fetchRepositories(count int) {
+	log.Println(time.Now().Format(time.RFC3339) + " -" + "Fetching Repositories.")
+
 	queryStr := `{
 		search(query: "lang:go + AND select:repo AND repohasfile:go.mod AND count:` + strconv.Itoa(count) + `", version:V2) { results {
 				repositories {
@@ -111,9 +113,10 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	// Those have to be pruned out.
 }
 
-// TODO: Doc
+// Process repositories, fetch metadata and calculate how many lines of code there are
+// in the repository.
 func (g *GoPlugin) processRepositories() {
-	repositories := g.getAllRepositories()
+	repos := g.getAllRepositories()
 
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
 		if err := os.Mkdir("tmp", 0777); err != nil {
@@ -121,27 +124,28 @@ func (g *GoPlugin) processRepositories() {
 		}
 	}
 
-	// append the https:// and .git prefix and postfix the RepositoryUrl variables.
-	for i := 0; i < len(repositories); i++ {
-		repositories[i].RepositoryUrl = "https://" + repositories[i].RepositoryUrl + ".git"
-	}
+	// Append the https:// and .git prefix and postfix the RepositoryUrl variables.
+	for i := 0; i < len(repos); i++ {
+		log.Println(time.Now().Format(time.RFC3339) + " -" + "Processing a Repository: " + repos[i].RepositoryName)
+		repos[i].RepositoryUrl = "https://" + repos[i].RepositoryUrl + ".git"
 
-	for _, repo := range repositories {
-		if repo.OriginalCodebaseSize == "" {
-			err := utils.Command("git", "clone", "--depth", "1", repo.RepositoryUrl, "tmp"+"/"+repo.RepositoryName)
+		// If the the repository is not analyzed, clone it and analyze it.
+		if repos[i].OriginalCodebaseSize == "" {
+			err := utils.Command("git", "clone", "--depth", "1", repos[i].RepositoryUrl, "tmp"+"/"+repos[i].RepositoryName)
 			if err != nil {
-				fmt.Printf("Error while cloning repository %s: %s, skipping...\n", repo.RepositoryUrl, err)
+				fmt.Printf("Error while cloning repository %s: %s, skipping...\n", repos[i].RepositoryUrl, err)
 				continue
 			}
 
-			lin, err := g.calculateCodeLines("tmp/" + repo.RepositoryName)
+			lin, err := g.calculateCodeLines("tmp" + "/" + repos[i].RepositoryName)
 			if err != nil {
 				fmt.Print(err.Error())
 				continue
 			}
 
-			g.updateCoreSize(repo.RepositoryName, lin)
+			g.updateCoreSize(repos[i].RepositoryName, lin)
 		}
+
 		g.pruneTemporaryFolder()
 	}
 }
@@ -172,6 +176,8 @@ func (g *GoPlugin) processLibraries() {
 		// are accessible by repository name. Download them to the local disk, calculate
 		// their sizes and append to the 'l' -variable.
 		for j := 0; j < len(libs[name]); j++ {
+			log.Println(time.Now().Format(time.RFC3339) + " -" + "Processing a Library: " + libs[name][j])
+
 			semCount++
 			sem <- struct{}{}
 			wg.Add(1)
