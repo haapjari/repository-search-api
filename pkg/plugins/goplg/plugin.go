@@ -113,29 +113,28 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	length := len(response.Data.Search.Results.Repositories)
 	repos := response.Data.Search.Results.Repositories
 
-	// var wg sync.WaitGroup
-	// s := make(chan int, g.MaxRoutines)
+	var wg sync.WaitGroup
+	s := make(chan int, g.MaxRoutines)
 
 	// Write the repositories to the database, avoid writing duplicates.
 	for i := 0; i < length; i++ {
-		//		s <- 1
-		//wg.Add(1)
-		//go func(i int) {
-		r := models.Repository{RepositoryName: repos[i].Name, RepositoryUrl: repos[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
-		if !g.checkIfRepositoryExists(r) {
-			g.DatabaseClient.Create(&r)
-		}
-		//defer func() { <-s }()
-		//	}(i)
-		//wg.Done()
+		s <- 1
+		wg.Add(1)
+		go func(i int) {
+			r := models.Repository{RepositoryName: repos[i].Name, RepositoryUrl: repos[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
+			if !g.checkIfRepositoryExists(r) {
+				g.DatabaseClient.Create(&r)
+			}
+			defer func() { <-s }()
+		}(i)
+		wg.Done()
 	}
 
-	//	wg.Wait()
+	wg.Wait()
 
-	//	for !(len(s) == 0) {
-	//
-	// continue
-	// }
+	for !(len(s) == 0) {
+		continue
+	}
 
 	// *** //
 
@@ -146,14 +145,13 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	// Commit Count, Original Codebase Size, Repository Type, Primary Language, Stargazers Count,
 	// Creation Date, License.
 	for i := 0; i < len(databaseSnapshot); i++ {
-		if !g.hasBeenEnriched(databaseSnapshot[i]) {
+		s <- 1
+		wg.Add(1)
+		go func(i int) {
+			if !g.hasBeenEnriched(databaseSnapshot[i]) {
+				repositoryOwner, repositoryName := g.Parser.ParseRepository(databaseSnapshot[i].RepositoryUrl)
 
-			fmt.Println(databaseSnapshot[i].RepositoryUrl)
-			fmt.Println("Repo has not been enriched.")
-
-			repositoryOwner, repositoryName := g.Parser.ParseRepository(databaseSnapshot[i].RepositoryUrl)
-
-			queryStr := fmt.Sprintf(`{
+				queryStr := fmt.Sprintf(`{
 					repository(owner: "%s", name: "%s") {
 						defaultBranchRef {
 							target {
@@ -187,53 +185,62 @@ func (g *GoPlugin) fetchRepositories(count int) {
 				}
 			}`, repositoryOwner, repositoryName)
 
-			rawRequestBody := map[string]string{
-				"query": queryStr,
-			}
+				rawRequestBody := map[string]string{
+					"query": queryStr,
+				}
 
-			requestBody, err := json.Marshal(rawRequestBody)
-			utils.CheckErr(err)
-
-			b := bytes.NewBuffer(requestBody)
-
-			githubRequest, err := http.NewRequest("POST", GITHUB_GRAPHQL_API_BASEURL, b)
-			utils.CheckErr(err)
-
-			githubRequest.Header.Set("Accept", "application/vnd.github.v3+json")
-
-			githubResponse, err := g.GitHubClient.Do(githubRequest)
-			utils.CheckErr(err)
-
-			defer githubResponse.Body.Close()
-
-			githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
-			utils.CheckErr(err)
-
-			var githubResponseStruct models.GitHubResponseStruct
-			json.Unmarshal([]byte(githubResponseBody), &githubResponseStruct)
-
-			// Start Updating Values.
-
-			var existingResponseStruct models.Repository
-
-			if err := g.DatabaseClient.Where("repository_name = ?", databaseSnapshot[i].RepositoryName).First(&existingResponseStruct).Error; err != nil {
+				requestBody, err := json.Marshal(rawRequestBody)
 				utils.CheckErr(err)
+
+				b := bytes.NewBuffer(requestBody)
+
+				githubRequest, err := http.NewRequest("POST", GITHUB_GRAPHQL_API_BASEURL, b)
+				utils.CheckErr(err)
+
+				githubRequest.Header.Set("Accept", "application/vnd.github.v3+json")
+
+				githubResponse, err := g.GitHubClient.Do(githubRequest)
+				utils.CheckErr(err)
+
+				defer githubResponse.Body.Close()
+
+				githubResponseBody, err := ioutil.ReadAll(githubResponse.Body)
+				utils.CheckErr(err)
+
+				var githubResponseStruct models.GitHubResponseStruct
+				json.Unmarshal([]byte(githubResponseBody), &githubResponseStruct)
+
+				// Start Updating Values.
+
+				var existingResponseStruct models.Repository
+
+				if err := g.DatabaseClient.Where("repository_name = ?", databaseSnapshot[i].RepositoryName).First(&existingResponseStruct).Error; err != nil {
+					utils.CheckErr(err)
+				}
+
+				existingResponseStruct.RepositoryName = repositoryName
+				existingResponseStruct.RepositoryUrl = databaseSnapshot[i].RepositoryUrl
+				existingResponseStruct.OpenIssueCount = strconv.Itoa(githubResponseStruct.Data.Repository.OpenIssues.TotalCount)
+				existingResponseStruct.ClosedIssueCount = strconv.Itoa(githubResponseStruct.Data.Repository.ClosedIssues.TotalCount)
+				existingResponseStruct.CommitCount = strconv.Itoa(githubResponseStruct.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
+				existingResponseStruct.RepositoryType = "primary"
+				existingResponseStruct.PrimaryLanguage = githubResponseStruct.Data.Repository.PrimaryLanguage.Name
+				existingResponseStruct.CreationDate = githubResponseStruct.Data.Repository.CreatedAt
+				existingResponseStruct.StargazerCount = strconv.Itoa(githubResponseStruct.Data.Repository.StargazerCount)
+				existingResponseStruct.LicenseInfo = githubResponseStruct.Data.Repository.LicenseInfo.Key
+				existingResponseStruct.LatestRelease = githubResponseStruct.Data.Repository.LatestRelease.PublishedAt
+
+				g.DatabaseClient.Model(&existingResponseStruct).Updates(existingResponseStruct)
 			}
+			defer func() { <-s }()
+		}(i)
+		wg.Done()
+	}
 
-			existingResponseStruct.RepositoryName = repositoryName
-			existingResponseStruct.RepositoryUrl = databaseSnapshot[i].RepositoryUrl
-			existingResponseStruct.OpenIssueCount = strconv.Itoa(githubResponseStruct.Data.Repository.OpenIssues.TotalCount)
-			existingResponseStruct.ClosedIssueCount = strconv.Itoa(githubResponseStruct.Data.Repository.ClosedIssues.TotalCount)
-			existingResponseStruct.CommitCount = strconv.Itoa(githubResponseStruct.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
-			existingResponseStruct.RepositoryType = "primary"
-			existingResponseStruct.PrimaryLanguage = githubResponseStruct.Data.Repository.PrimaryLanguage.Name
-			existingResponseStruct.CreationDate = githubResponseStruct.Data.Repository.CreatedAt
-			existingResponseStruct.StargazerCount = strconv.Itoa(githubResponseStruct.Data.Repository.StargazerCount)
-			existingResponseStruct.LicenseInfo = githubResponseStruct.Data.Repository.LicenseInfo.Key
-			existingResponseStruct.LatestRelease = githubResponseStruct.Data.Repository.LatestRelease.PublishedAt
+	wg.Wait()
 
-			g.DatabaseClient.Model(&existingResponseStruct).Updates(existingResponseStruct)
-		}
+	for !(len(s) == 0) {
+		continue
 	}
 }
 
