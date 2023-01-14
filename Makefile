@@ -4,6 +4,12 @@ run:
 	make compile
 	make run-bin
 
+get-all:
+	./requests/repository-get-all.sh
+
+fetch-metadata:
+	./requests/repository-fetch-metadata.sh
+
 workspace:
 	go work use .
 

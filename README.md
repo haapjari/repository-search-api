@@ -57,7 +57,9 @@ MAX_GOROUTINES=
 
 ## TODO
 
+- Docker: compose -file for PostgreSQL and Environment Variables.
 - Optimizations
+- Need to add some functionality, so I can gather the dataset in multiple runs.
 - Performance Testing
 - Add the skipped libraries on the data structures, and try to process them again.
 - Prune other than "Go" Primary Language repositories, before they are processed.
@@ -74,7 +76,8 @@ MAX_GOROUTINES=
 **14.1.2023**
 
 - Benchmark, 1 repository: 175 sec, 118 sec, 90 sec (64 routines), 85 sec (128 Routines)
-- Benchmark
+- Benchmark, 5 repositories: 575 sec (115s / repository)
+- Benchmark, 
 
 ---
 

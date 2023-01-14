@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // removeDuplicates removes duplicates from a slice of strings
@@ -67,10 +68,15 @@ func Command(command string, args ...string) error {
 	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 
 	err := cmd.Run()
-
 	if err != nil {
-		return fmt.Errorf("Error - %s: %s", err)
+		return fmt.Errorf("Error: %s", err)
 	}
+
+	timer := time.AfterFunc(60*time.Second, func() {
+		cmd.Process.Kill()
+	})
+
+	timer.Stop()
 
 	return nil
 }
