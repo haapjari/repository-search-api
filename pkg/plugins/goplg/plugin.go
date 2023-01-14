@@ -11,7 +11,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/haapjari/glass/pkg/models"
@@ -70,7 +69,7 @@ func (g *GoPlugin) GenerateRepositoryData(c int) {
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
 // parses the repository location to the database table.
 func (g *GoPlugin) fetchRepositories(count int) {
-	log.Println(time.Now().Format(time.RFC3339) + " -" + "Fetching Repositories.")
+	log.Println("Fetching Repositories.")
 
 	queryStr := `{
 		search(query: "lang:go + AND select:repo AND repohasfile:go.mod AND count:` + strconv.Itoa(count) + `", version:V2) { results {
@@ -108,15 +107,13 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	g.processSourceGraphResponse(len(response.Data.Search.Results.Repositories), response.Data.Search.Results.Repositories)
 	g.enrichWithPrimaryRepositoryData()
 	g.pruneDuplicates()
-
-	// TODO: Alot of requests seem to result primary language repositories, which arent Go.
-	// Those have to be pruned out.
 }
 
 // Process repositories, fetch metadata and calculate how many lines of code there are
 // in the repository.
 func (g *GoPlugin) processRepositories() {
-	repos := g.getAllRepositories()
+	r := g.getAllRepositories()
+	var wg sync.WaitGroup
 
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
 		if err := os.Mkdir("tmp", 0777); err != nil {
@@ -125,26 +122,30 @@ func (g *GoPlugin) processRepositories() {
 	}
 
 	// Append the https:// and .git prefix and postfix the RepositoryUrl variables.
-	for i := 0; i < len(repos); i++ {
-		log.Println(time.Now().Format(time.RFC3339) + " -" + "Processing a Repository: " + repos[i].RepositoryName)
-		repos[i].RepositoryUrl = "https://" + repos[i].RepositoryUrl + ".git"
+	for i := 0; i < len(r); i++ {
 
-		// If the the repository is not analyzed, clone it and analyze it.
-		if repos[i].OriginalCodebaseSize == "" {
-			err := utils.Command("git", "clone", "--depth", "1", repos[i].RepositoryUrl, "tmp"+"/"+repos[i].RepositoryName)
-			if err != nil {
-				fmt.Printf("Error while cloning repository %s: %s, skipping...\n", repos[i].RepositoryUrl, err)
-				continue
+		r[i].RepositoryUrl = "https://" + r[i].RepositoryUrl + ".git"
+
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if r[i].OriginalCodebaseSize == "" {
+				err := utils.Command("git", "clone", "--depth", "1", r[i].RepositoryUrl, "tmp"+"/"+r[i].RepositoryName)
+				if err != nil {
+					fmt.Printf("Error while cloning repository %s: %s, skipping...\n", r[i].RepositoryUrl, err)
+					return
+				}
+
+				lin, err := g.calculateCodeLines("tmp" + "/" + r[i].RepositoryName)
+				if err != nil {
+					fmt.Print(err.Error())
+					return
+				}
+
+				g.updateCoreSize(r[i].RepositoryName, lin)
 			}
-
-			lin, err := g.calculateCodeLines("tmp" + "/" + repos[i].RepositoryName)
-			if err != nil {
-				fmt.Print(err.Error())
-				continue
-			}
-
-			g.updateCoreSize(repos[i].RepositoryName, lin)
-		}
+		}(i)
+		wg.Wait()
 
 		g.pruneTemporaryFolder()
 	}
@@ -154,8 +155,12 @@ func (g *GoPlugin) processRepositories() {
 // repositories, download the dependencies to the local disk, calculate their sizes and
 // save the values to the database.
 func (g *GoPlugin) processLibraries() {
+	log.Println("Processing Libraries.")
+
 	r := g.getAllRepositories()
 	libs := g.generateDependenciesMap(r)
+	var wg sync.WaitGroup
+	var m sync.RWMutex
 
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
 
@@ -167,53 +172,35 @@ func (g *GoPlugin) processLibraries() {
 		name := r[i].RepositoryName
 		l := 0
 
-		var wg sync.WaitGroup
-		var mux sync.RWMutex
-		var sem = make(chan struct{}, g.MaxRoutines)
-		var semCount int64
-
 		// Loop through the libraries, which are saved to the map, where dependencies
 		// are accessible by repository name. Download them to the local disk, calculate
 		// their sizes and append to the 'l' -variable.
 		for j := 0; j < len(libs[name]); j++ {
-			log.Println(time.Now().Format(time.RFC3339) + " -" + "Processing a Library: " + libs[name][j])
 
-			semCount++
-			sem <- struct{}{}
 			wg.Add(1)
 			go func(j int) {
 				// When the concurrently running goroutines is zero, we'll close the sem
 				// channel, in order to avoid a memory leak, because sem is initialized
 				// for every repository.
-				defer func() {
-					<-sem
-					// Using the atomic package here is important, as it's being accessed
-					// by multiple goroutines and we need to ensure that the value of semCount
-					// is read and written atomically, otherwise, we may end up with a race condition.
-					atomic.AddInt64(&semCount, -1)
-					if atomic.LoadInt64(&semCount) == 0 {
-						close(sem)
-					}
-					wg.Done()
-				}()
+				defer wg.Done()
 
-				mux.RLock()
+				m.RLock()
 				value, ok := g.LibraryCache[libs[name][j]]
-				mux.RUnlock()
+				m.RUnlock()
 				if ok {
-					mux.Lock()
+					m.Lock()
 					l += value
-					mux.Unlock()
+					m.Unlock()
 					return
 				} else {
 					// This has to be protected with mutex, because "go get" is modifying same "go.mod" -file.
-					mux.Lock()
+					m.Lock()
 					err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
 					if err != nil {
 						fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
 						return
 					}
-					mux.Unlock()
+					m.Unlock()
 
 					lin, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
 					if err != nil {
@@ -221,10 +208,10 @@ func (g *GoPlugin) processLibraries() {
 						return
 					}
 
-					mux.Lock()
+					m.Lock()
 					g.LibraryCache[libs[name][j]] = lin
 					l += lin
-					mux.Unlock()
+					m.Unlock()
 				}
 			}(j)
 		}
@@ -272,6 +259,20 @@ func (g *GoPlugin) pruneDuplicates() {
 		}
 
 		g.DatabaseClient.Delete(&r)
+	}
+
+	g.pruneLanguages()
+}
+
+func (g *GoPlugin) pruneLanguages() {
+	r := g.getAllRepositories()
+	for i := 0; i < len(r); i++ {
+
+		if r[i].PrimaryLanguage != "Go" {
+			repo := r[i]
+			g.DatabaseClient.Delete(repo)
+		}
+
 	}
 }
 
