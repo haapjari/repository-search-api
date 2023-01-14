@@ -55,17 +55,37 @@ MAX_GOROUTINES=
 
 # Notes
 
+- Implementation might have issues, since I am implementing concurrency for the first time.
+
 ## TODO
 
-- One repository contains almost 1 GB of data, repository analysis needs to be done in batches.
-    - Maybe batches of 10 - 50.
-- Library Analysis:
-    - Add error handling.
-    - If the commands return errors - make the functionality more robust.
-    - Parallelism won't solve the performance issues, since `go get` is designed to be 
-    ran as a single threaded. Need to look for optimizations else where.
+- Docker: compose -file for PostgreSQL and Environment Variables.
 - Optimizations
+- Need to add some functionality, so I can gather the dataset in multiple runs.
 - Performance Testing
+- Add the skipped libraries on the data structures, and try to process them again.
+- Prune other than "Go" Primary Language repositories, before they are processed.
+
+---
+
+## Performance Testing
+
+**13.1.2023**
+
+- Benchmark, 1 repository: 165 sec
+- Benchmark, 10 repositories: Crash
+
+**14.1.2023**
+
+These Benchmark's are, when "go get" is protected with Mutexes.
+
+- Benchmark, 1 repository: 175 sec, 118 sec, 90 sec (64 routines), 85 sec (128 Routines)
+- Benchmark, 5 repositories: 575 sec (115s / repository)
+- Benchmark, 1 repository: 146 sec (16 routines), 105 seconds (64 routines)
+- Benchmark, 10 repositories: 543 seconds (64 routines), (54,3 seconds per repository)
+- Benchmark, 25 repositories: 381 seconds (15 seconds per repostiory)
+
+Note: 4619596
 
 ---
 

@@ -11,6 +11,7 @@ import (
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
 	"github.com/hhatto/gocloc"
+	"github.com/pingcap/errors"
 	JSONParser "github.com/tidwall/gjson"
 )
 
@@ -28,24 +29,6 @@ func (g *GoPlugin) updateCoreSize(name string, lines int) {
 
 	// Update the database.
 	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
-}
-
-func (g *GoPlugin) restoreModuleFiles() {
-	utils.RemoveFiles("go.mod", "go.sum")
-	utils.CopyFile("go.mod.bak", "go.mod")
-	utils.CopyFile("go.sum.bak", "go.sum")
-	utils.RemoveFiles("go.mod.bak", "go.sum.bak")
-}
-
-func (g *GoPlugin) resetModuleFiles() {
-	utils.RemoveFiles("go.mod", "go.sum")
-	utils.CopyFile("go.mod.bak", "go.mod")
-	utils.CopyFile("go.sum.bak", "go.sum")
-}
-
-func (g *GoPlugin) saveModuleFiles() {
-	utils.CopyFile("go.mod", "go.mod.bak")
-	utils.CopyFile("go.sum", "go.sum.bak")
 }
 
 func (g *GoPlugin) processSourceGraphResponse(length int, repositories []models.SourceGraphRepositories) {
@@ -85,7 +68,11 @@ func (g *GoPlugin) getAllRepositories() []models.Repository {
 
 // Calculates the lines of code using https://github.com/hhatto/gocloc
 // in the path provided and return the value.
-func (g *GoPlugin) calculateCodeLines(path string) int {
+func (g *GoPlugin) calculateCodeLines(path string) (int, error) {
+	if !folderExists(path) {
+		return 0, errors.New("Error - " + path + " doesn't exist.")
+	}
+
 	languages := gocloc.NewDefinedLanguages()
 	options := gocloc.NewClocOptions()
 
@@ -98,8 +85,7 @@ func (g *GoPlugin) calculateCodeLines(path string) int {
 	result, err := processor.Analyze(paths)
 	utils.CheckErr(err)
 
-	return int(result.Total.Code)
-
+	return int(result.Total.Code), nil
 }
 
 // Delete the contents of tmp -folder.
@@ -140,6 +126,25 @@ func findDuplicates(repositories []models.Repository) []models.Repository {
 	return duplicateEntries
 }
 
+// Check if a folder exists in the file system.
+func folderExists(folderPath string) bool {
+	// Use os.Stat to get the file information for the folder
+	_, err := os.Stat(folderPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// The folder does not exist
+			return false
+		} else {
+			// Some other error occurred
+			fmt.Printf("Error checking if folder exists: %v", err)
+			return false
+		}
+	}
+
+	// The folder exists
+	return true
+}
+
 // Parse "github.com/mholt/archiver/v3 v3.5.1" into the format "github.com/mholt/archiver/v3@v3.5.1"
 func convertToDownloadableFormat(input string) string {
 	// Split the input string on the first space character
@@ -161,6 +166,11 @@ func hasUppercase(s string) bool {
 	return false
 }
 
+// Parses the input string to correct format.
+// Input: "github.com/example/component v1.0.0"
+// Output: "github.com/example/component@v1.0.0"
+// Input: "github.com/example/Component v1.0.0"
+// Output: "github.com/example/!component@v1.0.0"
 func parseLibraryUrl(input string) string {
 	// Split the input string on the first space character
 	parts := strings.SplitN(input, " ", 2)
@@ -171,16 +181,17 @@ func parseLibraryUrl(input string) string {
 	// Split the package name on the '/' character
 	packageNameParts := strings.Split(parts[0], "/")
 
-	// Add the '!' prefix and lowercase each part of the package name
+	// Add the '!' prefix and lowercase each upper character, of the package name
 	for i, part := range packageNameParts {
-		// Split the part on each uppercase character
-		subParts := strings.Split(part, "")
-		for j, subPart := range subParts {
-			if hasUppercase(subPart) {
-				subParts[j] = "!" + strings.ToLower(subPart)
+		modifiedPart := ""
+		for _, subPart := range part {
+			if unicode.IsUpper(subPart) {
+				modifiedPart += "!" + strings.ToLower(string(subPart))
+			} else {
+				modifiedPart += string(subPart)
 			}
 		}
-		packageNameParts[i] = strings.Join(subParts, "")
+		packageNameParts[i] = modifiedPart
 	}
 
 	// Join the modified package name parts with '/' characters

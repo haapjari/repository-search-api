@@ -69,6 +69,8 @@ func (g *GoPlugin) GenerateRepositoryData(c int) {
 // Fetches initial metadata of the repositories. Crafts a SourceGraph GraphQL request, and
 // parses the repository location to the database table.
 func (g *GoPlugin) fetchRepositories(count int) {
+	log.Println("Fetching Repositories.")
+
 	queryStr := `{
 		search(query: "lang:go + AND select:repo AND repohasfile:go.mod AND count:` + strconv.Itoa(count) + `", version:V2) { results {
 				repositories {
@@ -105,14 +107,14 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	g.processSourceGraphResponse(len(response.Data.Search.Results.Repositories), response.Data.Search.Results.Repositories)
 	g.enrichWithPrimaryRepositoryData()
 	g.pruneDuplicates()
-
-	// TODO: Alot of requests seem to result primary language repositories, which arent Go.
-	// Those have to be pruned out.
 }
 
-// TODO: Doc
+// Process repositories, fetch metadata and calculate how many lines of code there are
+// in the repository.
 func (g *GoPlugin) processRepositories() {
-	repositories := g.getAllRepositories()
+	r := g.getAllRepositories()
+	var wg sync.WaitGroup
+	s := make(chan int, g.MaxRoutines)
 
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
 		if err := os.Mkdir("tmp", 0777); err != nil {
@@ -120,64 +122,121 @@ func (g *GoPlugin) processRepositories() {
 		}
 	}
 
-	// append the https:// and .git prefix and postfix the RepositoryUrl variables.
-	for i := 0; i < len(repositories); i++ {
-		repositories[i].RepositoryUrl = "https://" + repositories[i].RepositoryUrl + ".git"
-	}
+	// Append the https:// and .git prefix and postfix the RepositoryUrl variables.
+	for i := 0; i < len(r); i++ {
+		r[i].RepositoryUrl = "https://" + r[i].RepositoryUrl + ".git"
+		s <- 1
+		wg.Add(1)
+		go func(i int) {
+			defer func() {
+				wg.Done()
+				<-s
+			}()
+			if r[i].OriginalCodebaseSize == "" {
+				err := utils.Command("git", "clone", "--depth", "1", r[i].RepositoryUrl, "tmp"+"/"+r[i].RepositoryName)
+				if err != nil {
+					fmt.Printf("Error while cloning repository %s: %s, skipping...\n", r[i].RepositoryUrl, err)
+				}
 
-	for _, repo := range repositories {
-		if repo.OriginalCodebaseSize == "" {
-			err := utils.Command("git", "clone", "--depth", "1", repo.RepositoryUrl, "tmp"+"/"+repo.RepositoryName)
-			if err != nil {
-				fmt.Printf("Error while cloning repository %s: %s, skipping...\n", repo.RepositoryUrl, err)
-				continue
+				lin, err := g.calculateCodeLines("tmp" + "/" + r[i].RepositoryName)
+				if err != nil {
+					fmt.Print(err.Error())
+				}
+
+				g.updateCoreSize(r[i].RepositoryName, lin)
 			}
+		}(i)
+		wg.Wait()
 
-			lines := g.calculateCodeLines("tmp/" + repo.RepositoryName)
-
-			g.updateCoreSize(repo.RepositoryName, lines)
-		}
 		g.pruneTemporaryFolder()
 	}
+
+	// When the Channel Length is not 0, there is still running Threads.
+	for !(len(s) == 0) {
+		continue
+	}
+
+	close(s)
 }
 
 // Loop through repositories, generate the dependency map from the go.mod files of the
 // repositories, download the dependencies to the local disk, calculate their sizes and
 // save the values to the database.
 func (g *GoPlugin) processLibraries() {
+	log.Println("Processing Libraries.")
+
 	r := g.getAllRepositories()
 	libs := g.generateDependenciesMap(r)
+	var wg sync.WaitGroup
+	var m sync.RWMutex
+	s := make(chan int, g.MaxRoutines)
 
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
-	g.saveModuleFiles()
+
+	utils.CopyFile("go.mod", "go.mod.bak")
+	utils.CopyFile("go.sum", "go.sum.bak")
 
 	// Loop through repositories.
 	for i := 0; i < len(r); i++ {
 		name := r[i].RepositoryName
 		l := 0
+		s <- 1
 
 		// Loop through the libraries, which are saved to the map, where dependencies
 		// are accessible by repository name. Download them to the local disk, calculate
 		// their sizes and append to the 'l' -variable.
 		for j := 0; j < len(libs[name]); j++ {
-			err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
-			if err != nil {
-				fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
-				continue
-			}
 
-			// Check wether the library is already analyzed from the cache. If library
-			// is not yet analyzed, analyze it and save the values to the 'cache'.
-			if value, ok := g.LibraryCache[libs[name][j]]; ok {
-				l += value
-			} else {
-				g.LibraryCache[libs[name][j]] = g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
-				l += g.LibraryCache[libs[name][j]]
-			}
+			wg.Add(1)
+			go func(j int) {
+				// When the concurrently running goroutines is zero, we'll close the sem
+				// channel, in order to avoid a memory leak, because sem is initialized
+				// for every repository.
+				defer func() {
+					wg.Done()
+					<-s
+				}()
+
+				m.RLock()
+				value, ok := g.LibraryCache[libs[name][j]]
+				m.RUnlock()
+				if ok {
+					m.Lock()
+					l += value
+					m.Unlock()
+					return
+				} else {
+					// This is not the most elegant way, and it's using more computation without mutexes.
+					// multiple goroutines crash, and try to download same library, and this leads to errors
+					// but now the program has functionality to recover from that. This increases performance
+					// alot, but it's using waste computation. This might just be a risk, that has to be accepted.
+
+					// m.Lock()
+					err := utils.Command("go", "get", "-d", "-v", convertToDownloadableFormat(libs[name][j]))
+					if err != nil {
+						fmt.Printf("Error while processing library %s: %s, skipping...\n", libs[name][j], err)
+					}
+					// m.Unlock()
+
+					lin, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libs[name][j]))
+					if err != nil {
+						fmt.Println("Error, while calculating code lines:", err.Error())
+					}
+
+					m.Lock()
+					g.LibraryCache[libs[name][j]] = lin
+					l += lin
+					m.Unlock()
+				}
+			}(j)
 		}
+		wg.Wait()
 
 		g.pruneTemporaryFolder()
-		g.resetModuleFiles()
+
+		utils.RemoveFiles("go.mod", "go.sum")
+		utils.CopyFile("go.mod.bak", "go.mod")
+		utils.CopyFile("go.sum.bak", "go.sum")
 
 		var repositoryStruct models.Repository
 
@@ -189,8 +248,19 @@ func (g *GoPlugin) processLibraries() {
 		g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
 	}
 
+	// When the Channel Length is not 0, there is still running Threads.
+	for !(len(s) == 0) {
+		continue
+	}
+
+	close(s)
+
 	os.Setenv("GOPATH", utils.GetDefaultGoPath())
-	g.restoreModuleFiles()
+
+	utils.RemoveFiles("go.mod", "go.sum")
+	utils.CopyFile("go.mod.bak", "go.mod")
+	utils.CopyFile("go.sum.bak", "go.sum")
+	utils.RemoveFiles("go.mod.bak", "go.sum.bak")
 }
 
 // ************************************************************* //
@@ -211,6 +281,20 @@ func (g *GoPlugin) pruneDuplicates() {
 		}
 
 		g.DatabaseClient.Delete(&r)
+	}
+
+	g.pruneLanguages()
+}
+
+func (g *GoPlugin) pruneLanguages() {
+	r := g.getAllRepositories()
+	for i := 0; i < len(r); i++ {
+
+		if r[i].PrimaryLanguage != "Go" {
+			repo := r[i]
+			g.DatabaseClient.Delete(repo)
+		}
+
 	}
 }
 

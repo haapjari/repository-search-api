@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // removeDuplicates removes duplicates from a slice of strings
@@ -66,13 +68,23 @@ func Command(command string, args ...string) error {
 	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 
-	err := cmd.Run()
-
+	err := cmd.Start()
 	if err != nil {
-		return fmt.Errorf("Error - %s: %s", err)
+		return fmt.Errorf("error: %s", err)
 	}
 
-	return nil
+	done := make(chan error)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-time.After(120 * time.Second):
+		cmd.Process.Kill()
+		return errors.New("Command timeout, 120 seconds")
+	case err := <-done:
+		return err
+	}
 }
 
 func CheckErr(err error) {
