@@ -2,6 +2,7 @@ package goplg
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -31,6 +32,18 @@ func (g *GoPlugin) updateCoreSize(name string, lines int) {
 	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
 }
 
+func (g *GoPlugin) checkIfRepositoryExists(r models.Repository) bool {
+	existingRepos := g.getAllRepositories()
+
+	for _, existingRepo := range existingRepos {
+		if existingRepo.RepositoryName == r.RepositoryName {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (g *GoPlugin) processSourceGraphResponse(length int, repositories []models.SourceGraphRepositories) {
 	var wg sync.WaitGroup
 
@@ -43,7 +56,17 @@ func (g *GoPlugin) processSourceGraphResponse(length int, repositories []models.
 
 		go func(i int) {
 			r := models.Repository{RepositoryName: repositories[i].Name, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
-			g.DatabaseClient.Create(&r)
+
+			flag := g.checkIfRepositoryExists(r)
+
+			// Check wether the repository exists, so we won't create duplicates.
+			if !flag {
+				g.DatabaseClient.Create(&r)
+			}
+
+			if flag {
+				log.Print("error: repository " + r.RepositoryName + " already exists.")
+			}
 
 			defer func() { <-semaphore }()
 		}(i)
@@ -57,7 +80,6 @@ func (g *GoPlugin) processSourceGraphResponse(length int, repositories []models.
 	}
 }
 
-// TODO: Refactor, to not to use HTTP requests (?)
 func (g *GoPlugin) getAllRepositories() []models.Repository {
 	var repositories []models.Repository
 
@@ -154,16 +176,6 @@ func convertToDownloadableFormat(input string) string {
 	}
 	// Return the first part (the package name) followed by an @ symbol and the second part (the version)
 	return parts[0] + "@" + parts[1]
-}
-
-// Check if the string has uppercase.
-func hasUppercase(s string) bool {
-	for _, r := range s {
-		if unicode.IsUpper(r) {
-			return true
-		}
-	}
-	return false
 }
 
 // Parses the input string to correct format.
