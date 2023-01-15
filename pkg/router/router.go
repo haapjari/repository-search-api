@@ -31,11 +31,9 @@ func SetupRouter() {
 	r.GET("/api/glass/v1/repository/:id", repository.GetRepositoryById)
 	r.DELETE("/api/glass/v1/repository/:id", repository.DeleteRepositoryById)
 	r.PATCH("/api/glass/v1/repository/:id", repository.UpdateRepositoryById)
-
 	r.GET("/api/glass/v1/repository/fetch/metadata", repository.GetRepositoryMetadata)
 
-	// TODO
-	//	r.GET("/api/glass/v1/repository/generate/csv", repository.GenerateCsv)
+	r.GET("/api/glass/v1/repository/generate/csv", repository.GenerateCsv)
 
 	r.GET("/api/glass/v1/metrics", prom.Handler)
 

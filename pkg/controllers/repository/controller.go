@@ -49,3 +49,8 @@ func GetRepositoryMetadata(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"data": "not supported"})
 	}
 }
+
+func GenerateCsv(c *gin.Context) {
+	h := NewHandler(c)
+	h.HandleGenerateCsv()
+}
