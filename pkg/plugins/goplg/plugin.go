@@ -385,7 +385,7 @@ func (g *GoPlugin) processLibraries() {
 
 	close(semaphore)
 
-	os.Setenv("GOPATH", utils.GetDefaultGoPath())
+	os.Setenv("GOPATH", utils.GetGoPath())
 
 	utils.RemoveFiles("go.mod", "go.sum")
 	utils.CopyFile("go.mod.bak", "go.mod")

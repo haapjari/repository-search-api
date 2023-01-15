@@ -16,7 +16,7 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 
 - **Glass** is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`.
 
-- *WIP*: Go
+- Go
 - Proposed: node
 
 ---
@@ -27,7 +27,7 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 
 - See `Makefile`
 - Requires: `go`, `postgresql`
-- `.env` -file, you need to fill up these values: <!-- TODO: Theres multiple hardcoded values, give these examples to here.>
+- `.env` -file.
 
 ```
 POSTGRES_USER=
@@ -39,11 +39,17 @@ GITHUB_USERNAME=
 GITHUB_TOKEN=
 GITHUB_GRAPHQL_API=https://api.github.com/graphql
 SOURCEGRAPH_GRAPHQL_API=https://sourcegraph.com/.api/graphql
-BASEURL=localhost:8080/api/glass/v1
 GOPATH=
+GOPATH_PROD=
 PROCESS_DIR=
-MAX_GOROUTINES=
+PROCESS_DIR_PROD=
+MAX_GOROUTINES=64
 ```
+
+### Generate Metadata
+
+- Endpoint `/api/glass/v1/repository/fetch/metadata` - requires following query parameters `type` and `count`.
+    - Example: `/api/glass/v1/repository/fetch/metadata?type=go&count=1`
 
 ---
 
@@ -57,67 +63,15 @@ MAX_GOROUTINES=
 
 - Implementation might have issues, since I am implementing concurrency for the first time.
 
-## TODO
+## TODO (Out of the Thesis Scope)
 
-- CSV -endpoint.
-- QM -generation endpoint.
-- Performance Testing
-
----
-
-## Performance Testing
-
-**13.1.2023**
-
-- Benchmark, 1 repository: 165 sec
-- Benchmark, 10 repositories: Crash
-
-**14.1.2023**
-
-These Benchmark's are, when "go get" is protected with Mutexes.
-
-- Benchmark, 1 repository: 175 sec, 118 sec, 90 sec (64 routines), 85 sec (128 Routines)
-- Benchmark, 5 repositories: 575 sec (115s / repository)
-- Benchmark, 1 repository: 146 sec (16 routines), 105 seconds (64 routines)
-- Benchmark, 10 repositories: 543 seconds (64 routines), (54,3 seconds per repository)
-- Benchmark, 25 repositories: 381 seconds (15 seconds per repostiory)
+- Quality Measure -endpoint.
+- GitLab Runner.
+- More precise QM -endpoint.
 
 ---
 
-### Quality Measure
-
-- Repository Activity: Higher -> Better
-    - Amount of commits.
-- Maintainers: Higher -> Better
-    - Amount of maintainers. 
-- Ratio of Open Issues to Closed Issues: Less -> Better
-    - Amount of Open Issues
-    - Amount of Closed Issues
-- Creation Date: Older -> Better
-    - Might be an indicator of maturity of the repository.
-- Stars: Higher -> Better
-    - Determines the popularity of the repository.
-- Releases: Higher -> Better
-    - Determines the maturity of the repository, more releases might indicate more mature project.
-- Latest Release Date: More Recent -> Better
-    - If there are more than certain threshold amount of time from last release, might be worse.
-
-Thresholds of these amounts will be calculated, thresholds will be inbeween 0-5, where 2.5 is at middle of the amounts.
-
-These values will be averaged in a single `Quality Measure`. Correlation will be calculated ratio of library to original code lines, or ratio of sizes. Is there a correlation between bigger ratio and quality measure.
-
-#### Derivative Information
-
-- Correlation:
-    - QM / Original Codebase Size
-    - QM / Ratio of (Open Issues / Closed Issues)
-    - QM / Maintainers
-    - QM / Creation Date
-    - QM / Stars
-
----
-
-### Run PostgreSQL as a Docker Container
+## Run PostgreSQL as a Docker Container
 
 - Create Docker Network: `docker network create --subnet=172.19.0.0/16 glass_network`
 - Run the PostgreSQL container in a certain network, with couple environment variables, and static IP -address.
@@ -125,5 +79,9 @@ These values will be averaged in a single `Quality Measure`. Correlation will be
 ```docker run -d --name postgres --net glass_network --ip 172.19.0.2 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres```
 
 - Verify, that the PostgreSQL is running, with: `psql -h localhost -U postgres`
+
+- Check address of the container: 
+
+```docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' glass_postgres_1```
 
 ---

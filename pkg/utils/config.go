@@ -48,7 +48,7 @@ func GetProcessDirPath() string {
 	return fmt.Sprint(viper.Get("PROCESS_DIR"))
 }
 
-func GetDefaultGoPath() string {
+func GetGoPath() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
 
