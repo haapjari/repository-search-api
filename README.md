@@ -14,10 +14,10 @@ This is **Glass**, a research tool which aims to offer data collection capabilit
 
 ## Plugins
 
-- **Glass** is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`.
+- **Glass** is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`. Alpha Version of the Plugin is Completed in 15.1.2023.
 
-- Go
-- Proposed: node
+- Go (Alpha Version Released)
+- Planning: node.js
 
 ---
 
@@ -39,10 +39,10 @@ GITHUB_USERNAME=
 GITHUB_TOKEN=
 GITHUB_GRAPHQL_API=https://api.github.com/graphql
 SOURCEGRAPH_GRAPHQL_API=https://sourcegraph.com/.api/graphql
-GOPATH=
-GOPATH_PROD=
-PROCESS_DIR=
-PROCESS_DIR_PROD=
+GOPATH=$HOME/go
+GOPATH_PROD=/go
+PROCESS_DIR=/path/to/workdir/tmp
+PROCESS_DIR_PROD=/path/to/workdir/tmp
 MAX_GOROUTINES=64
 ```
 
@@ -65,28 +65,37 @@ MAX_GOROUTINES=64
 
 ## TODO
 
-- 2023/01/15 04:48:18 parse "https://raw.githubusercontent.com/rudderlabs/rudder-server/master//\tWeshouldfrequentlyreviewthissectiontoremoveorupdatethe/go.mod": net/url: invalid control character in URL
-- Error
+- TBD
 
 ## TODO (Out of the Thesis Scope)
 
 - Quality Measure -endpoint.
+- Commit -analysis.
 - GitLab Runner.
-- More precise QM -endpoint.
 
 ---
 
-## Run PostgreSQL as a Docker Container
+## Docker Notes
 
-- Create Docker Network: `docker network create --subnet=172.19.0.0/16 glass_network`
+### Run Glass a a Docker Container
+
+- Network:`docker network create --subnet=172.19.0.0/16 <network_name>`
+- Build: `docker build --tag glass:latest .`
+- Run: `docker run -idt -p 8080:8080 --cpus=<cpu_count> -m <memory_amount> --name glass --net <network_name> glass:latest`
+
+You might need to configure `.env` - file values to fit your environment.
+
+### Run PostgreSQL as a Docker Container
+
+- Create Docker Network: `docker network create --subnet=172.19.0.0/16 <network_name>`
 - Run the PostgreSQL container in a certain network, with couple environment variables, and static IP -address.
 
-```docker run -d --name postgres --net glass_network --ip 172.19.0.2 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres```
+```docker run -d --name postgres --net <network_name> --ip 172.19.0.2 -e POSTGRES_USER=<username> -e POSTGRES_PASSWORD=<password> -e POSTGRES_DB=<database_name> -p 5432:5432 postgres```
 
 - Verify, that the PostgreSQL is running, with: `psql -h localhost -U postgres`
 
-- Check address of the container: 
+### General Docker Notes
 
-```docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' glass_postgres_1```
+- Check the IP -address of the container: `docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' container_name`
 
 ---

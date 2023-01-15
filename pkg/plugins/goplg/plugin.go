@@ -64,7 +64,10 @@ func (g *GoPlugin) GenerateRepositoryData(c int) {
 	g.fetchRepositories(c)
 	g.pruneDuplicates()
 	g.processRepositories()
-	g.processLibraries()
+	// g.processLibraries()
+
+	repositories := g.getAllRepositories()
+	g.generateDependenciesMap(repositories)
 }
 
 // Queries SourceGraph and GitHub GraphQL API's, and saves the metadata from the queries
@@ -440,22 +443,24 @@ func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map
 			repositoryName := repositories[i].RepositoryName
 			repositoryUrl := repositories[i].RepositoryUrl
 			outerModule := g.GoMods[repositoryUrl]
-			replacePaths := g.GoMods[repositoryUrl].Replace
 
 			dependenciesMapMutex.Lock()
 			dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], outerModule.Require...)
 			dependenciesMapMutex.Unlock()
 
-			for i := 0; i < len(replacePaths); i++ {
-				if isLocalPath(replacePaths[i]) {
-					innerModFilePath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + repositoryUrl + trimFirstRune(replacePaths[i]) + "/" + "go.mod"
-					innerModuleFile, err := parseGoMod(innerModFilePath)
-					if err != nil {
-						fmt.Printf("error, while parsing the inner module file: %s", err)
-					} else {
-						dependenciesMapMutex.Lock()
-						dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], innerModuleFile.Require...)
-						dependenciesMapMutex.Unlock()
+			if g.GoMods[repositoryUrl].Replace != nil {
+				replacePaths := g.GoMods[repositoryUrl].Replace
+				for i := 0; i < len(replacePaths); i++ {
+					if isLocalPath(replacePaths[i]) {
+						innerModFilePath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + repositoryUrl + trimFirstRune(replacePaths[i]) + "/" + "go.mod"
+						innerModuleFile, err := parseGoMod(innerModFilePath)
+						if err != nil {
+							fmt.Printf("error, while parsing the inner module file: %s", err)
+						} else {
+							dependenciesMapMutex.Lock()
+							dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], innerModuleFile.Require...)
+							dependenciesMapMutex.Unlock()
+						}
 					}
 				}
 			}
