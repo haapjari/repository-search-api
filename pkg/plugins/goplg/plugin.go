@@ -440,6 +440,7 @@ func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map
 			repositoryName := repositories[i].RepositoryName
 			repositoryUrl := repositories[i].RepositoryUrl
 			outerModule := g.GoMods[repositoryUrl]
+
 			replacePaths := g.GoMods[repositoryUrl].Replace
 
 			dependenciesMapMutex.Lock()
