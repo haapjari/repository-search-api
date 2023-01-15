@@ -36,6 +36,8 @@ type GoPlugin struct {
 	GitHubClient   *http.Client
 	MaxRoutines    int
 	LibraryCache   map[string]int
+	GoMods         map[string]*GoMod
+	InnerGoMods    map[string][]*GoMod
 }
 
 func New(DatabaseClient *gorm.DB) *GoPlugin {
@@ -49,6 +51,8 @@ func New(DatabaseClient *gorm.DB) *GoPlugin {
 	g.DatabaseClient = DatabaseClient
 	g.LibraryCache = make(map[string]int)
 	g.Parser = NewParser()
+	g.GoMods = make(map[string]*GoMod)
+	g.InnerGoMods = make(map[string][]*GoMod)
 	g.MaxRoutines, err = strconv.Atoi(utils.GetMaxGoRoutines())
 	utils.CheckErr(err)
 
@@ -234,6 +238,8 @@ func (g *GoPlugin) processRepositories() {
 	repositories := g.getAllRepositories()
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan int, g.MaxRoutines)
+	var goModsMutex sync.Mutex
+	// var innerModsMutex sync.Mutex
 
 	// Create "tmp" directory, if the directory doesn't already exists.
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
@@ -261,6 +267,17 @@ func (g *GoPlugin) processRepositories() {
 				if err != nil {
 					fmt.Print(err.Error())
 				}
+
+				goModsMutex.Lock()
+
+				goMod, err := parseGoMod(repositories[i].RepositoryName + "/" + "go.mod")
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					g.GoMods[repositories[i].RepositoryUrl] = goMod
+				}
+
+				goModsMutex.Unlock()
 
 				var repositoryStruct models.Repository
 
@@ -412,98 +429,40 @@ func (g *GoPlugin) pruneDuplicates() {
 // Function gets a list of repositories and returns a map of repository names and their dependencies (parsed from go.mod file).
 func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map[string][]string {
 	dependenciesMap := make(map[string][]string)
-	var readWriteMutex sync.RWMutex
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan struct{}, g.MaxRoutines)
+	var dependenciesMapMutex sync.Mutex
 
 	for i := 0; i < len(repositories); i++ {
 		waitGroup.Add(1)
 		semaphore <- struct{}{}
 		go func(i int) {
-			repositoryUrl := repositories[i].RepositoryUrl
 			repositoryName := repositories[i].RepositoryName
+			repositoryUrl := repositories[i].RepositoryUrl
+			outerModule := g.GoMods[repositoryUrl]
+			replacePaths := g.GoMods[repositoryUrl].Replace
 
-			queryString := fmt.Sprintf(`{
-			repository(name: "%s") {
-				defaultBranch {
-					target {
-						commit {
-							blob(path: "go.mod") {
-								content
-							}
-						}
+			dependenciesMapMutex.Lock()
+			dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], outerModule.Require...)
+			dependenciesMapMutex.Unlock()
+
+			for i := 0; i < len(replacePaths); i++ {
+				if isLocalPath(replacePaths[i]) {
+					innerModFilePath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + repositoryUrl + trimFirstRune(replacePaths[i]) + "/" + "go.mod"
+					innerModuleFile, err := parseGoMod(innerModFilePath)
+					if err != nil {
+						fmt.Printf("error, while parsing the inner module file: %s", err)
+					} else {
+						dependenciesMapMutex.Lock()
+						dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], innerModuleFile.Require...)
+						dependenciesMapMutex.Unlock()
 					}
 				}
 			}
-		}`, repositoryUrl)
 
-			rawRequest := map[string]string{
-				"query": queryString,
-			}
-
-			requestBody, err := json.Marshal(rawRequest)
-			utils.CheckErr(err)
-
-			bytesBody := bytes.NewBuffer(requestBody)
-
-			httpRequest, err := http.NewRequest("POST", SOURCEGRAPH_GRAPHQL_API_BASEURL, bytesBody)
-			httpRequest.Header.Set("Content-Type", "application/json")
-			utils.CheckErr(err)
-
-			httpResponse, err := g.HttpClient.Do(httpRequest)
-			utils.CheckErr(err)
-
-			defer httpResponse.Body.Close()
-
-			httpResponseBody, err := ioutil.ReadAll(httpResponse.Body)
-			utils.CheckErr(err)
-
-			outerModuleFile := extractDefaultBranchCommitBlobContent(httpResponseBody)
-
-			// TODO: if the go.mod file is saved to the memory beforehand, we can skip into this.
-			fmt.Println(outerModuleFile)
-
-			var (
-				libraries        []string
-				innerModuleFiles []string
-			)
-
-			// If the go.mod file has "replace" - keyword, it has inner go.mod files, parse them to a list.
-			if g.Parser.CheckForInnerModFiles(outerModuleFile) {
-				// Parse the ending from URL.
-				repositoryOwner, repositoryName, err := parseName(repositoryUrl)
-				utils.CheckErr(err)
-
-				innerModuleFiles = g.Parser.ParseInnerModFiles(outerModuleFile, repositoryOwner+"/"+repositoryName)
-			}
-
-			// Parse the name of libraries from modfile to a slice.
-			readWriteMutex.Lock()
-			libraries = g.Parser.ParseDependenciesFromModFile(outerModuleFile)
-			readWriteMutex.Unlock()
-
-			// If the go.mod file has "replace" - keyword, it has inner go.mod files,
-			// append libraries from inner go.mod files to the libraries slice.
-			if g.Parser.CheckForInnerModFiles(outerModuleFile) {
-				// Parse the library names of the inner go.mod files, and append them to the libraries slice.
-				for i := 0; i < len(innerModuleFiles); i++ {
-					// Perform a GET request, to get the content of the inner modfile.
-					// Append the libraries from the inner modfile to the libraries slice.
-					readWriteMutex.Lock()
-					libraries = append(libraries, g.Parser.ParseDependenciesFromModFile(utils.GetRequest(innerModuleFiles[i]))...)
-					readWriteMutex.Unlock()
-				}
-			}
-
-			readWriteMutex.Lock()
-
-			// Remove duplicates from the libraries slice.
-			libraries = utils.RemoveDuplicates(libraries)
-
-			// Append all the values to the map.
-			dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], libraries...)
-
-			readWriteMutex.Unlock()
+			dependenciesMapMutex.Lock()
+			dependenciesMap[repositoryName] = utils.RemoveDuplicates(dependenciesMap[repositoryName])
+			dependenciesMapMutex.Unlock()
 
 			defer func() {
 				waitGroup.Done()
