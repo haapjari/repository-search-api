@@ -1,82 +1,80 @@
-version: '3.8'
-   
-volumes:
-  prometheus-data:
-    driver: local
-  grafana-data:
-    driver: local
-  db:
-    driver: local
-
-networks:
-  glass:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16
+version: '3'
 
 services:
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - /etc/prometheus:/config
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/config/prometheus.yml'
-    networks:
-      glass:
-        ipv4_address: 172.20.0.5
-  db:
-    image: postgres:14.5-alpine
-    container_name: postgres
-    restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    ports:
-      - '5432:5432'
-    volumes: 
-      - db:/var/lib/postgresql/data
-    networks:
-      glass:
-        ipv4_address: 172.20.0.6
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-    networks:
-      glass:
-        ipv4_address: 172.20.0.7
-  glass:
-    build: .
-    container_name: glass
-    ports:
-      - "8080:8080"
-    networks:
-      glass:
-        ipv4_address: 172.20.0.8
 
   node-exporter:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
+    image: prom/node-exporter
+    networks:
+      - glassnet
+    ports:
+      - "9100:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    expose:
-      - 9100
+
+  grafana:
+    image: grafana/grafana
     networks:
-      glass:
-        ipv4_address: 172.20.0.9
+      - glassnet
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=password
+
+  prometheus:
+    image: prom/prometheus
+    networks:
+      - glassnet
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    links:
+      - node-exporter
+
+  postgres:
+    image: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - mydb:/var/lib/postgresql/data
+    networks:
+      glassnet:
+        ipv4_address: 172.19.0.2
+
+  glass:
+#    build: .
+    image: glass:latest
+    environment:
+      - GIN_MODE=release
+      - PORT=8080
+      - GOOS=linux
+      - GOARCH=amd64
+      - CGO_ENABLED=0
+    ports:
+      - "8080:8080"
+    command: ["./bin/glass"]
+    networks:
+      glassnet:
+        ipv4_address: 172.19.0.1
+
+
+networks:
+  glassnet:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.19.0.0/16
+
+volumes:
+  prometheus:
+  mydb:

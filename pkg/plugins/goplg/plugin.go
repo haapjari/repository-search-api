@@ -24,7 +24,6 @@ var (
 	GITHUB_USERNAME                 string = fmt.Sprintf("%v", utils.GetGithubUsername())
 	SOURCEGRAPH_GRAPHQL_API_BASEURL string = utils.GetSourceGraphGQLApi()
 	GITHUB_GRAPHQL_API_BASEURL      string = utils.GetGitHubGQLApi()
-	REPOSITORY_API_BASEURL          string = "http://" + utils.GetBaseUrl() + "/" + "repository"
 )
 
 // Plugin is tested with Go Version 1.19.4. Last Update: 15.1.2023.

@@ -2,18 +2,12 @@ package utils
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/viper"
 )
 
 // Single Point in Program to Fetch all the Environment Variables.
-
-func GetBaseUrl() string {
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
-
-	return fmt.Sprint(viper.Get("BASEURL"))
-}
 
 func GetMaxGoRoutines() string {
 	viper.SetConfigFile(".env")
@@ -47,12 +41,20 @@ func GetProcessDirPath() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
 
+	if os.Getenv("GIN_MODE") == "release" {
+		return fmt.Sprint(viper.Get("PROCESS_DIR_PROD"))
+	}
+
 	return fmt.Sprint(viper.Get("PROCESS_DIR"))
 }
 
 func GetDefaultGoPath() string {
 	viper.SetConfigFile("env")
 	viper.ReadInConfig()
+
+	if os.Getenv("GIN_MODE") == "release" {
+		return fmt.Sprint(viper.Get("GOPATH_PROD"))
+	}
 
 	return fmt.Sprint(viper.Get("GOPATH"))
 }

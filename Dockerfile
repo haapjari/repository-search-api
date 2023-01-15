@@ -12,14 +12,12 @@ WORKDIR     /go/src/glass
 # Copy Files from the Local Filesystem to the Image
 COPY        . .
 
-# Update Packages and Install Git
-RUN         apt-get update && apt-get install git 
+# Install vim
+RUN         apt-get update && apt-get upgrade -y
+RUN         apt-get install nano 
 
 # Install the Dependencies
 RUN         go get ./...
-
-# Install hhatto/gocloc Binary
-RUN         go install github.com/hhatto/gocloc/cmd/gocloc@latest
 
 # Build the Binary
 RUN         go build -o ./bin/glass ./cmd/main.go
