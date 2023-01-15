@@ -64,10 +64,7 @@ func (g *GoPlugin) GenerateRepositoryData(c int) {
 	g.fetchRepositories(c)
 	g.pruneDuplicates()
 	g.processRepositories()
-	// g.processLibraries()
-
-	repositories := g.getAllRepositories()
-	g.generateDependenciesMap(repositories)
+	g.processLibraries()
 }
 
 // Queries SourceGraph and GitHub GraphQL API's, and saves the metadata from the queries
@@ -284,7 +281,6 @@ func (g *GoPlugin) processRepositories() {
 
 				var repositoryStruct models.Repository
 
-				// Find matching repository from the database.
 				if err := g.DatabaseClient.Where("repository_url = ?", repositories[i].RepositoryUrl).First(&repositoryStruct).Error; err != nil {
 					utils.CheckErr(err)
 				}
@@ -442,10 +438,9 @@ func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map
 		go func(i int) {
 			repositoryName := repositories[i].RepositoryName
 			repositoryUrl := repositories[i].RepositoryUrl
-			outerModule := g.GoMods[repositoryUrl]
 
 			dependenciesMapMutex.Lock()
-			dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], outerModule.Require...)
+			dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], g.GoMods[repositoryUrl].Require...)
 			dependenciesMapMutex.Unlock()
 
 			if g.GoMods[repositoryUrl].Replace != nil {
