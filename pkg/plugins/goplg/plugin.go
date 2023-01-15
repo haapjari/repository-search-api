@@ -270,12 +270,13 @@ func (g *GoPlugin) processRepositories() {
 
 				goModsMutex.Lock()
 
+				//TODO
 				goMod, err := parseGoMod(repositories[i].RepositoryName + "/" + "go.mod")
 				if err != nil {
 					fmt.Println(err)
-				} else {
-					g.GoMods[repositories[i].RepositoryUrl] = goMod
 				}
+
+				g.GoMods[repositories[i].RepositoryUrl] = goMod
 
 				goModsMutex.Unlock()
 
@@ -308,7 +309,7 @@ func (g *GoPlugin) processRepositories() {
 // save the values to the database.
 func (g *GoPlugin) processLibraries() {
 	repositories := g.getAllRepositories()
-	libraries := g.generateDependenciesMap(repositories)
+	libraries := g.generateDependenciesMap(repositories) // TODO: This is causing a null pointer reference.
 	var waitGroup sync.WaitGroup
 	var readWriteMutex sync.RWMutex
 	semaphore := make(chan int, g.MaxRoutines)
@@ -428,49 +429,54 @@ func (g *GoPlugin) pruneDuplicates() {
 // Function gets a list of repositories and returns a map of repository names and their dependencies (parsed from go.mod file).
 func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map[string][]string {
 	dependenciesMap := make(map[string][]string)
-	var waitGroup sync.WaitGroup
-	semaphore := make(chan struct{}, g.MaxRoutines)
-	var dependenciesMapMutex sync.Mutex
+	// 	var waitGroup sync.WaitGroup
+	// semaphore := make(chan struct{}, g.MaxRoutines)
+	// var dependenciesMapMutex sync.Mutex
 
 	for i := 0; i < len(repositories); i++ {
-		waitGroup.Add(1)
-		semaphore <- struct{}{}
-		go func(i int) {
-			repositoryName := repositories[i].RepositoryName
-			repositoryUrl := repositories[i].RepositoryUrl
+		// waitGroup.Add(1)
+		// semaphore <- struct{}{}
+		// go func(i int) {
+		repositoryName := repositories[i].RepositoryName
+		repositoryUrl := repositories[i].RepositoryUrl
 
-			dependenciesMapMutex.Lock()
-			dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], g.GoMods[repositoryUrl].Require...)
-			dependenciesMapMutex.Unlock()
+		// TODO: This is returning nil pointer reference.
+		for i := 0; i < len(g.GoMods[repositoryUrl].Require); i++ {
+			fmt.Println(g.GoMods[repositoryUrl].Require[i])
+		}
 
-			if g.GoMods[repositoryUrl].Replace != nil {
-				replacePaths := g.GoMods[repositoryUrl].Replace
-				for i := 0; i < len(replacePaths); i++ {
-					if isLocalPath(replacePaths[i]) {
-						innerModFilePath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + repositoryUrl + trimFirstRune(replacePaths[i]) + "/" + "go.mod"
-						innerModuleFile, err := parseGoMod(innerModFilePath)
-						if err != nil {
-							fmt.Printf("error, while parsing the inner module file: %s", err)
-						} else {
-							dependenciesMapMutex.Lock()
-							dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], innerModuleFile.Require...)
-							dependenciesMapMutex.Unlock()
-						}
+		// dependenciesMapMutex.Lock()
+		dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], g.GoMods[repositoryUrl].Require...)
+		// dependenciesMapMutex.Unlock()
+
+		if g.GoMods[repositoryUrl].Replace != nil {
+			replacePaths := g.GoMods[repositoryUrl].Replace
+			for i := 0; i < len(replacePaths); i++ {
+				if isLocalPath(replacePaths[i]) {
+					innerModFilePath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + repositoryUrl + trimFirstRune(replacePaths[i]) + "/" + "go.mod"
+					innerModuleFile, err := parseGoMod(innerModFilePath)
+					if err != nil {
+						fmt.Printf("error, while parsing the inner module file: %s", err)
+					} else {
+						//		dependenciesMapMutex.Lock()
+						dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], innerModuleFile.Require...)
+						//	dependenciesMapMutex.Unlock()
 					}
 				}
 			}
+		}
 
-			dependenciesMapMutex.Lock()
-			dependenciesMap[repositoryName] = utils.RemoveDuplicates(dependenciesMap[repositoryName])
-			dependenciesMapMutex.Unlock()
+		// dependenciesMapMutex.Lock()
+		dependenciesMap[repositoryName] = utils.RemoveDuplicates(dependenciesMap[repositoryName])
+		//			dependenciesMapMutex.Unlock()
 
-			defer func() {
-				waitGroup.Done()
-				<-semaphore
-			}()
-		}(i)
+		//		defer func() {
+		//waitGroup.Done()
+		//<-semaphore
+		//}()
+		//}(i)
 	}
-	waitGroup.Wait()
+	// waitGroup.Wait()
 
 	return dependenciesMap
 }

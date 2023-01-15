@@ -3,7 +3,6 @@ package goplg
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -13,11 +12,6 @@ import (
 	"github.com/hhatto/gocloc"
 	"github.com/pingcap/errors"
 )
-
-func hasField(t reflect.Type, fieldName string) bool {
-	_, ok := t.FieldByName(fieldName)
-	return ok
-}
 
 func trimFirstRune(s string) string {
 	_, i := utf8.DecodeRuneInString(s)
