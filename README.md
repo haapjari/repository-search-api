@@ -59,12 +59,10 @@ MAX_GOROUTINES=
 
 ## TODO
 
+- CSV -endpoint.
+- QM -generation endpoint.
 - Docker: compose -file for PostgreSQL and Environment Variables.
-- Optimizations
-- Need to add some functionality, so I can gather the dataset in multiple runs.
 - Performance Testing
-- Add the skipped libraries on the data structures, and try to process them again.
-- Prune other than "Go" Primary Language repositories, before they are processed.
 
 ---
 

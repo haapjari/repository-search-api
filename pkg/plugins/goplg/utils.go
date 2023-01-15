@@ -3,7 +3,6 @@ package goplg
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -14,23 +13,7 @@ import (
 	JSONParser "github.com/tidwall/gjson"
 )
 
-func (g *GoPlugin) updateCoreSize(name string, lines int) {
-	// Copy the repository struct to a new variable.
-	var repositoryStruct models.Repository
-
-	// Find matching repository from the database.
-	if err := g.DatabaseClient.Where("repository_name = ?", name).First(&repositoryStruct).Error; err != nil {
-		utils.CheckErr(err)
-	}
-
-	// Update the OriginalCodebaseSize variable, with calculated value.
-	repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
-
-	// Update the database.
-	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
-}
-
-func (g *GoPlugin) checkIfRepositoryExists(r models.Repository) bool {
+func (g *GoPlugin) repositoryExists(r models.Repository) bool {
 	existingRepos := g.getAllRepositories()
 
 	for _, existingRepo := range existingRepos {
@@ -67,7 +50,7 @@ func (g *GoPlugin) getAllRepositories() []models.Repository {
 // Calculates the lines of code using https://github.com/hhatto/gocloc
 // in the path provided and return the value.
 func (g *GoPlugin) calculateCodeLines(path string) (int, error) {
-	if !folderExists(path) {
+	if !pathExists(path) {
 		return 0, errors.New("Error - " + path + " doesn't exist.")
 	}
 
@@ -125,7 +108,7 @@ func findDuplicates(repositories []models.Repository) []models.Repository {
 }
 
 // Check if a folder exists in the file system.
-func folderExists(folderPath string) bool {
+func pathExists(folderPath string) bool {
 	// Use os.Stat to get the file information for the folder
 	_, err := os.Stat(folderPath)
 	if err != nil {
@@ -144,7 +127,7 @@ func folderExists(folderPath string) bool {
 }
 
 // Parse "github.com/mholt/archiver/v3 v3.5.1" into the format "github.com/mholt/archiver/v3@v3.5.1"
-func convertToDownloadableFormat(input string) string {
+func downloadableFormat(input string) string {
 	// Split the input string on the first space character
 	parts := strings.SplitN(input, " ", 2)
 	if len(parts) != 2 {
