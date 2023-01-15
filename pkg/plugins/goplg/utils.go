@@ -3,9 +3,7 @@ package goplg
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
-	"sync"
 	"unicode"
 
 	"github.com/haapjari/glass/pkg/models"
@@ -15,49 +13,32 @@ import (
 	JSONParser "github.com/tidwall/gjson"
 )
 
-func (g *GoPlugin) updateCoreSize(name string, lines int) {
-	// Copy the repository struct to a new variable.
-	var repositoryStruct models.Repository
+func (g *GoPlugin) repositoryExists(r models.Repository) bool {
+	existingRepos := g.getAllRepositories()
 
-	// Find matching repository from the database.
-	if err := g.DatabaseClient.Where("repository_name = ?", name).First(&repositoryStruct).Error; err != nil {
-		utils.CheckErr(err)
+	for _, existingRepo := range existingRepos {
+		if existingRepo.RepositoryUrl == r.RepositoryUrl {
+			return true
+		}
 	}
 
-	// Update the OriginalCodebaseSize variable, with calculated value.
-	repositoryStruct.OriginalCodebaseSize = strconv.Itoa(lines)
-
-	// Update the database.
-	g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
+	return false
 }
 
-func (g *GoPlugin) processSourceGraphResponse(length int, repositories []models.SourceGraphRepositories) {
-	var wg sync.WaitGroup
+func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
+	existingRepos := g.getAllRepositories()
 
-	// Semaphore is a safeguard to goroutines, to allow only "MaxThreads" run at the same time.
-	semaphore := make(chan int, g.MaxRoutines)
-
-	for i := 0; i < length; i++ {
-		semaphore <- 1
-		wg.Add(1)
-
-		go func(i int) {
-			r := models.Repository{RepositoryName: repositories[i].Name, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
-			g.DatabaseClient.Create(&r)
-
-			defer func() { <-semaphore }()
-		}(i)
-		wg.Done()
+	for _, existingRepo := range existingRepos {
+		if existingRepo.RepositoryUrl == r.RepositoryUrl {
+			if existingRepo.OpenIssueCount == "" && existingRepo.ClosedIssueCount == "" && existingRepo.CommitCount == "" && existingRepo.RepositoryType == "" && existingRepo.PrimaryLanguage == "" && existingRepo.CreationDate == "" && existingRepo.StargazerCount == "" && existingRepo.LicenseInfo == "" && existingRepo.LatestRelease == "" {
+				return false
+			}
+		}
 	}
-	wg.Wait()
 
-	// When the Channel Length is not 0, there is still running goroutines.
-	for !(len(semaphore) == 0) {
-		continue
-	}
+	return true
 }
 
-// TODO: Refactor, to not to use HTTP requests (?)
 func (g *GoPlugin) getAllRepositories() []models.Repository {
 	var repositories []models.Repository
 
@@ -69,7 +50,7 @@ func (g *GoPlugin) getAllRepositories() []models.Repository {
 // Calculates the lines of code using https://github.com/hhatto/gocloc
 // in the path provided and return the value.
 func (g *GoPlugin) calculateCodeLines(path string) (int, error) {
-	if !folderExists(path) {
+	if !pathExists(path) {
 		return 0, errors.New("Error - " + path + " doesn't exist.")
 	}
 
@@ -127,7 +108,7 @@ func findDuplicates(repositories []models.Repository) []models.Repository {
 }
 
 // Check if a folder exists in the file system.
-func folderExists(folderPath string) bool {
+func pathExists(folderPath string) bool {
 	// Use os.Stat to get the file information for the folder
 	_, err := os.Stat(folderPath)
 	if err != nil {
@@ -146,7 +127,7 @@ func folderExists(folderPath string) bool {
 }
 
 // Parse "github.com/mholt/archiver/v3 v3.5.1" into the format "github.com/mholt/archiver/v3@v3.5.1"
-func convertToDownloadableFormat(input string) string {
+func downloadableFormat(input string) string {
 	// Split the input string on the first space character
 	parts := strings.SplitN(input, " ", 2)
 	if len(parts) != 2 {
@@ -154,16 +135,6 @@ func convertToDownloadableFormat(input string) string {
 	}
 	// Return the first part (the package name) followed by an @ symbol and the second part (the version)
 	return parts[0] + "@" + parts[1]
-}
-
-// Check if the string has uppercase.
-func hasUppercase(s string) bool {
-	for _, r := range s {
-		if unicode.IsUpper(r) {
-			return true
-		}
-	}
-	return false
 }
 
 // Parses the input string to correct format.
