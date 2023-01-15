@@ -412,7 +412,7 @@ func (g *GoPlugin) pruneDuplicates() {
 // Function gets a list of repositories and returns a map of repository names and their dependencies (parsed from go.mod file).
 func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map[string][]string {
 	dependenciesMap := make(map[string][]string)
-	// var mutex sync.Mutex
+	var readWriteMutex sync.RWMutex
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan struct{}, g.MaxRoutines)
 
@@ -460,6 +460,9 @@ func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map
 
 			outerModuleFile := extractDefaultBranchCommitBlobContent(httpResponseBody)
 
+			// TODO: if the go.mod file is saved to the memory beforehand, we can skip into this.
+			fmt.Println(outerModuleFile)
+
 			var (
 				libraries        []string
 				innerModuleFiles []string
@@ -475,7 +478,9 @@ func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map
 			}
 
 			// Parse the name of libraries from modfile to a slice.
+			readWriteMutex.Lock()
 			libraries = g.Parser.ParseDependenciesFromModFile(outerModuleFile)
+			readWriteMutex.Unlock()
 
 			// If the go.mod file has "replace" - keyword, it has inner go.mod files,
 			// append libraries from inner go.mod files to the libraries slice.
@@ -484,15 +489,21 @@ func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map
 				for i := 0; i < len(innerModuleFiles); i++ {
 					// Perform a GET request, to get the content of the inner modfile.
 					// Append the libraries from the inner modfile to the libraries slice.
+					readWriteMutex.Lock()
 					libraries = append(libraries, g.Parser.ParseDependenciesFromModFile(utils.GetRequest(innerModuleFiles[i]))...)
+					readWriteMutex.Unlock()
 				}
 			}
+
+			readWriteMutex.Lock()
 
 			// Remove duplicates from the libraries slice.
 			libraries = utils.RemoveDuplicates(libraries)
 
 			// Append all the values to the map.
 			dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], libraries...)
+
+			readWriteMutex.Unlock()
 
 			defer func() {
 				waitGroup.Done()
