@@ -5,13 +5,22 @@ import (
 	"os"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/haapjari/glass/pkg/models"
 	"github.com/haapjari/glass/pkg/utils"
 	"github.com/hhatto/gocloc"
 	"github.com/pingcap/errors"
-	JSONParser "github.com/tidwall/gjson"
 )
+
+func trimFirstRune(s string) string {
+	_, i := utf8.DecodeRuneInString(s)
+	return s[i:]
+}
+
+func isLocalPath(path string) bool {
+	return strings.HasPrefix(path, "./")
+}
 
 func (g *GoPlugin) repositoryExists(r models.Repository) bool {
 	existingRepos := g.getAllRepositories()
@@ -77,14 +86,6 @@ func (g *GoPlugin) pruneTemporaryFolder() {
 }
 
 // Parse repository name from url.
-func parseName(s string) (string, string, error) {
-	parts := strings.Split(s, "/")
-	if len(parts) < 3 {
-		return "", "", fmt.Errorf("invalid repository string: %s", s)
-	}
-	return parts[1], parts[2], nil
-}
-
 // Creates a slice of repositories, which are duplicates in an original list.
 func findDuplicates(repositories []models.Repository) []models.Repository {
 	// Create a map to store the names of the repositories that we've seen so far
@@ -170,14 +171,4 @@ func parseLibraryUrl(input string) string {
 
 	// Return the modified package name followed by an '@' symbol and the version
 	return packageName + "@" + parts[1]
-}
-
-// Export the JSON Parser to separate function.
-func extractDefaultBranchCommitBlobContent(sourceGraphResponseBody []byte) string {
-	outerModFile := JSONParser.Get(
-		string(sourceGraphResponseBody),
-		"data.repository.defaultBranch.target.commit.blob.content",
-	)
-
-	return outerModFile.String()
 }

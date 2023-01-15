@@ -63,6 +63,11 @@ MAX_GOROUTINES=64
 
 - Implementation might have issues, since I am implementing concurrency for the first time.
 
+## TODO
+
+- 2023/01/15 04:48:18 parse "https://raw.githubusercontent.com/rudderlabs/rudder-server/master//\tWeshouldfrequentlyreviewthissectiontoremoveorupdatethe/go.mod": net/url: invalid control character in URL
+- Error
+
 ## TODO (Out of the Thesis Scope)
 
 - Quality Measure -endpoint.
