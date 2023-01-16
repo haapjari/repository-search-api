@@ -120,7 +120,7 @@ func (h *Handler) HandleGetRepositoryMetadata() {
 	utils.CheckErr(err)
 
 	if h.Context.Query("type") == "go" {
-		plugin := goplg.New(h.Database)
+		plugin := goplg.NewGoPlugin(h.Database)
 		plugin.GenerateRepositoryData(count)
 	}
 }

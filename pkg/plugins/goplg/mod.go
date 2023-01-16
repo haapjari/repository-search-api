@@ -16,13 +16,17 @@ type GoMod struct {
 }
 
 func NewGoMod() *GoMod {
-	return new(GoMod)
+	return &GoMod{
+		Module:  "",
+		Require: []string{},
+		Replace: []string{},
+	}
 }
 
+// Give a path to "go.mod" - file, and return out a "GoMod" -structure including the
+// parsed data from the "go.mod" file.
 func parseGoMod(path string) (*GoMod, error) {
 	goModFile := NewGoMod()
-
-	fmt.Println("Do we get here before boom")
 
 	pathToFile := filepath.Join(utils.GetProcessDirPath(), path)
 
@@ -43,12 +47,10 @@ func parseGoMod(path string) (*GoMod, error) {
 
 	for i := 0; i < len(file.Require); i++ {
 		requirementsSlice[i] = file.Require[i].Mod.Path + " " + file.Require[i].Mod.Version
-		fmt.Println(requirementsSlice[i])
 	}
 
 	for i := 0; i < len(file.Replace); i++ {
 		replacementsSlice[i] = file.Replace[i].New.Path
-		fmt.Println(replacementsSlice[i])
 	}
 
 	goModFile.Require = requirementsSlice

@@ -37,10 +37,10 @@ type GoPlugin struct {
 	MaxRoutines    int
 	LibraryCache   map[string]int
 	GoMods         map[string]*GoMod
-	InnerGoMods    map[string][]*GoMod
+	DependencyMap  map[string][]string
 }
 
-func New(DatabaseClient *gorm.DB) *GoPlugin {
+func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 	g := new(GoPlugin)
 	var err error
 
@@ -52,8 +52,8 @@ func New(DatabaseClient *gorm.DB) *GoPlugin {
 	g.LibraryCache = make(map[string]int)
 	g.Parser = NewParser()
 	g.GoMods = make(map[string]*GoMod)
-	g.InnerGoMods = make(map[string][]*GoMod)
 	g.MaxRoutines, err = strconv.Atoi(utils.GetMaxGoRoutines())
+	g.DependencyMap = make(map[string][]string)
 	utils.CheckErr(err)
 
 	return g
@@ -239,7 +239,6 @@ func (g *GoPlugin) processRepositories() {
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan int, g.MaxRoutines)
 	var goModsMutex sync.Mutex
-	// var innerModsMutex sync.Mutex
 
 	// Create "tmp" directory, if the directory doesn't already exists.
 	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
@@ -260,7 +259,7 @@ func (g *GoPlugin) processRepositories() {
 
 				err := utils.Command("git", "clone", "--depth", "1", repositoryUrl, "tmp"+"/"+repositories[i].RepositoryName)
 				if err != nil {
-					fmt.Printf("Error while cloning repository %s: %s, skipping...\n", repositoryUrl, err)
+					fmt.Printf("error while cloning repository %s: %s, skipping...\n", repositoryUrl, err)
 				}
 
 				repositoryCodeLines, err := g.calculateCodeLines("tmp" + "/" + repositories[i].RepositoryName)
@@ -269,16 +268,14 @@ func (g *GoPlugin) processRepositories() {
 				}
 
 				goModsMutex.Lock()
-
-				//TODO
 				goMod, err := parseGoMod(repositories[i].RepositoryName + "/" + "go.mod")
 				if err != nil {
-					fmt.Println(err)
+					fmt.Printf("error, while parsing the modfile of "+repositories[i].RepositoryName+": %s", err)
 				}
-
 				g.GoMods[repositories[i].RepositoryUrl] = goMod
-
 				goModsMutex.Unlock()
+
+				g.generateDependenciesMap(repositories[i])
 
 				var repositoryStruct models.Repository
 
@@ -309,7 +306,7 @@ func (g *GoPlugin) processRepositories() {
 // save the values to the database.
 func (g *GoPlugin) processLibraries() {
 	repositories := g.getAllRepositories()
-	libraries := g.generateDependenciesMap(repositories) // TODO: This is causing a null pointer reference.
+	libraries := g.DependencyMap
 	var waitGroup sync.WaitGroup
 	var readWriteMutex sync.RWMutex
 	semaphore := make(chan int, g.MaxRoutines)
@@ -386,7 +383,6 @@ func (g *GoPlugin) processLibraries() {
 			utils.CopyFile("go.sum.bak", "go.sum")
 
 			var repositoryStruct models.Repository
-
 			if err := g.DatabaseClient.Where("repository_url = ?", repositoryUrl).First(&repositoryStruct).Error; err != nil {
 				utils.CheckErr(err)
 			}
@@ -401,9 +397,7 @@ func (g *GoPlugin) processLibraries() {
 	}
 
 	close(semaphore)
-
 	os.Setenv("GOPATH", utils.GetGoPath())
-
 	utils.RemoveFiles("go.mod", "go.sum")
 	utils.CopyFile("go.mod.bak", "go.mod")
 	utils.CopyFile("go.sum.bak", "go.sum")
@@ -421,62 +415,31 @@ func (g *GoPlugin) pruneDuplicates() {
 		if err := g.DatabaseClient.Where("repository_url = ?", duplicateRepositories[i].RepositoryUrl).First(&repository).Error; err != nil {
 			utils.CheckErr(err)
 		}
-
 		g.DatabaseClient.Delete(&repository)
 	}
 }
 
-// Function gets a list of repositories and returns a map of repository names and their dependencies (parsed from go.mod file).
-func (g *GoPlugin) generateDependenciesMap(repositories []models.Repository) map[string][]string {
-	dependenciesMap := make(map[string][]string)
-	// 	var waitGroup sync.WaitGroup
-	// semaphore := make(chan struct{}, g.MaxRoutines)
-	// var dependenciesMapMutex sync.Mutex
+// Gets a list of repositories and returns a map of repository names and their dependencies,
+// which are parsed from the projects "go.mod" -file.
+func (g *GoPlugin) generateDependenciesMap(repository models.Repository) {
+	repositoryName := repository.RepositoryName
+	repositoryUrl := repository.RepositoryUrl
 
-	for i := 0; i < len(repositories); i++ {
-		// waitGroup.Add(1)
-		// semaphore <- struct{}{}
-		// go func(i int) {
-		repositoryName := repositories[i].RepositoryName
-		repositoryUrl := repositories[i].RepositoryUrl
+	g.DependencyMap[repositoryName] = append(g.DependencyMap[repositoryName], g.GoMods[repositoryUrl].Require...)
 
-		// TODO: This is returning nil pointer reference.
-		for i := 0; i < len(g.GoMods[repositoryUrl].Require); i++ {
-			fmt.Println(g.GoMods[repositoryUrl].Require[i])
-		}
-
-		// dependenciesMapMutex.Lock()
-		dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], g.GoMods[repositoryUrl].Require...)
-		// dependenciesMapMutex.Unlock()
-
-		if g.GoMods[repositoryUrl].Replace != nil {
-			replacePaths := g.GoMods[repositoryUrl].Replace
-			for i := 0; i < len(replacePaths); i++ {
-				if isLocalPath(replacePaths[i]) {
-					innerModFilePath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + repositoryUrl + trimFirstRune(replacePaths[i]) + "/" + "go.mod"
-					innerModuleFile, err := parseGoMod(innerModFilePath)
-					if err != nil {
-						fmt.Printf("error, while parsing the inner module file: %s", err)
-					} else {
-						//		dependenciesMapMutex.Lock()
-						dependenciesMap[repositoryName] = append(dependenciesMap[repositoryName], innerModuleFile.Require...)
-						//	dependenciesMapMutex.Unlock()
-					}
+	if g.GoMods[repositoryUrl].Replace != nil {
+		replacePaths := g.GoMods[repositoryUrl].Replace
+		for i := 0; i < len(replacePaths); i++ {
+			if isLocalPath(replacePaths[i]) {
+				innerModFilePath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + repositoryUrl + trimFirstRune(replacePaths[i]) + "/" + "go.mod"
+				innerModuleFile, err := parseGoMod(innerModFilePath)
+				if err != nil {
+					fmt.Printf("error, while parsing the inner module file: %s", err)
+				} else {
+					g.DependencyMap[repositoryName] = append(g.DependencyMap[repositoryName], innerModuleFile.Require...)
 				}
 			}
 		}
-
-		// dependenciesMapMutex.Lock()
-		dependenciesMap[repositoryName] = utils.RemoveDuplicates(dependenciesMap[repositoryName])
-		//			dependenciesMapMutex.Unlock()
-
-		//		defer func() {
-		//waitGroup.Done()
-		//<-semaphore
-		//}()
-		//}(i)
 	}
-	// waitGroup.Wait()
-
-	return dependenciesMap
+	g.DependencyMap[repositoryName] = utils.RemoveDuplicates(g.DependencyMap[repositoryName])
 }
