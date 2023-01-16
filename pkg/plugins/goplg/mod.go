@@ -15,21 +15,31 @@ type GoMod struct {
 	Replace []string
 }
 
+func NewGoMod() *GoMod {
+	return &GoMod{
+		Module:  "",
+		Require: []string{},
+		Replace: []string{},
+	}
+}
+
+// Give a path to "go.mod" - file, and return out a "GoMod" -structure including the
+// parsed data from the "go.mod" file.
 func parseGoMod(path string) (*GoMod, error) {
-	var goModFile GoMod
+	goModFile := NewGoMod()
 
 	pathToFile := filepath.Join(utils.GetProcessDirPath(), path)
 
 	bytes, err := ioutil.ReadFile(pathToFile)
 	if err != nil {
 		fmt.Println("error, while reading the modfile: ", err)
-		return &goModFile, err
+		return goModFile, err
 	}
 
 	file, err := modfile.Parse(utils.GetProcessDirPath()+"/"+path, bytes, nil)
 	if err != nil {
 		fmt.Println("error, while parsing modfile: ", err)
-		return &goModFile, err
+		return goModFile, err
 	}
 
 	requirementsSlice := make([]string, len(file.Require))
@@ -46,5 +56,5 @@ func parseGoMod(path string) (*GoMod, error) {
 	goModFile.Require = requirementsSlice
 	goModFile.Replace = replacementsSlice
 
-	return &goModFile, nil
+	return goModFile, nil
 }
