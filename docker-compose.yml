@@ -5,7 +5,7 @@ services:
   node-exporter:
     image: prom/node-exporter
     networks:
-      - glassnet
+      - glsnet
     ports:
       - "9100:9100"
     volumes:
@@ -16,7 +16,7 @@ services:
   grafana:
     image: grafana/grafana
     networks:
-      - glassnet
+      - glsnet
     ports:
       - "3000:3000"
     environment:
@@ -26,7 +26,7 @@ services:
   prometheus:
     image: prom/prometheus
     networks:
-      - glassnet
+      - glsnet
     ports:
       - "9090:9090"
     volumes:
@@ -48,12 +48,12 @@ services:
     volumes:
       - mydb:/var/lib/postgresql/data
     networks:
-      glassnet:
+      glsnet:
         ipv4_address: 172.19.0.2
 
-  glass:
+  glsgen:
 #    build: .
-    image: glass:latest
+    image: glsgen:latest
     environment:
       - GIN_MODE=release
       - PORT=8080
@@ -62,14 +62,14 @@ services:
       - CGO_ENABLED=0
     ports:
       - "8080:8080"
-    command: ["./bin/glass"]
+    command: ["./bin/glsgen"]
     networks:
-      glassnet:
+      glsnet:
         ipv4_address: 172.19.0.1
 
 
 networks:
-  glassnet:
+  glsnet:
     driver: bridge
     ipam:
       config:

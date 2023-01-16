@@ -2,10 +2,10 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: "glass"
-    metrics_path: /api/glass/v1/metrics
+  - job_name: "glsgen"
+    metrics_path: /api/gls/v1/metrics
     static_configs:
-    - targets: ["glass:8080"]
+    - targets: ["glsgen:8080"]
 
   - job_name: "node"
     static_configs:

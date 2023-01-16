@@ -6,15 +6,13 @@ Hello! I am Jari Haapasaari ([mail](mailto:haapjari@gmail.com)), and I am buildi
 
 ## About
 
-This is **Glass**, a research tool which aims to offer data collection capabilities to measure quality of open-source repositories and return a single value called "Quality Measure" to represent state of repositories. **Glass** is essentially an API, that collects data from multiple datasources, such as SourceGraph GraphQL API, GitHub GraphQL API and GitHub REST API, and combines that to meaningful form, that can be analyzed. 
-
-**Glass** is going to be used to create a dataset for my thesis, and could be further developed to a tool, that can run inside GitHub Actions or GitLab CI/CD as a separate tool.
+This is `glsgen` (gls Generator) research tool which is a REST API, which collects data of open-source repositories and generates a `.csv` file from them. Tool uses `SourceGraph GraphQL API` and `GitHub GraphQL API`, and counts the sizes of repositories and their dependencies. Tools initial purpose is to create dataset for my thesis.
 
 ---
 
 ## Plugins
 
-- **Glass** is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`. Alpha Version of the Plugin is Completed in 15.1.2023.
+- `glsgen` is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`. Alpha Version of the Plugin is Completed in 15.1.2023.
 
 - Go (Alpha Version Released)
 - Planning: node.js
@@ -48,8 +46,8 @@ MAX_GOROUTINES=64
 
 ### Generate Metadata
 
-- Endpoint `/api/glass/v1/repository/fetch/metadata` - requires following query parameters `type` and `count`.
-    - Example: `/api/glass/v1/repository/fetch/metadata?type=go&count=1`
+- Endpoint `/api/gls/v1/repository/fetch/metadata` - requires following query parameters `type` and `count`.
+    - Example: `/api/gls/v1/repository/fetch/metadata?type=go&count=1`
 
 ---
 
@@ -70,6 +68,7 @@ MAX_GOROUTINES=64
 ## TODO (Out of the Thesis Scope)
 
 - Quality Measure -endpoint.
+- .env -> config.yaml
 - Commit -analysis.
 - GitLab Runner.
 
@@ -77,11 +76,11 @@ MAX_GOROUTINES=64
 
 ## Docker Notes
 
-### Run Glass a a Docker Container
+### Run gls a a Docker Container
 
 - Network:`docker network create --subnet=172.19.0.0/16 <network_name>`
-- Build: `docker build --tag glass:latest .`
-- Run: `docker run -idt -p 8080:8080 --cpus=<cpu_count> -m <memory_amount> --name glass --net <network_name> glass:latest`
+- Build: `docker build --tag gls:latest .`
+- Run: `docker run -idt -p 8080:8080 --cpus=<cpu_count> -m <memory_amount> --name gls --net <network_name> gls:latest`
 
 You might need to configure `.env` - file values to fit your environment.
 

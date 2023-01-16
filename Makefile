@@ -33,7 +33,7 @@ docker-run:
 	docker run -idt -p 8080:8080 --name ${DOCKER_IMAGE} --net ${DOCKER_NETWORK} --ip ${DOCKER_STATIC_IP} ${DOCKER_IMAGE}:latest
 
 postgres-container-ip:
-	docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' glass_postgres_1
+	docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' glsgen_postgres_1
 
 docker-compose:
 	docker-compose up -d
