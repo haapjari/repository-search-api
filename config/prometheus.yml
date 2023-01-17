@@ -3,7 +3,7 @@ global:
 
 scrape_configs:
   - job_name: "glsgen"
-    metrics_path: /api/gls/v1/metrics
+    metrics_path: /api/v1/metrics
     static_configs:
     - targets: ["glsgen:8080"]
 

@@ -8,8 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/haapjari/glass/pkg/models"
-	"github.com/haapjari/glass/pkg/utils"
+	"github.com/haapjari/glsgen/pkg/models"
+	"github.com/haapjari/glsgen/pkg/utils"
 	"github.com/hhatto/gocloc"
 	"github.com/pingcap/errors"
 )
@@ -134,17 +134,14 @@ func (g *GoPlugin) findDuplicates(repositories []models.Repository) []models.Rep
 	for _, repository := range repositories {
 		wg.Add(1)
 		semaphore <- 1
-
 		go func(repository models.Repository) {
+			mu.Lock()
 			if seenRepositories[repository.RepositoryName] {
-				mu.Lock()
 				duplicateEntries = append(duplicateEntries, repository)
-				mu.Unlock()
 			} else {
-				mu.Lock()
 				seenRepositories[repository.RepositoryName] = true
-				mu.Unlock()
 			}
+			mu.Unlock()
 			defer func() {
 				<-semaphore
 				wg.Done()

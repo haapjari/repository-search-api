@@ -3,8 +3,8 @@ package database
 import (
 	"fmt"
 
-	"github.com/haapjari/glass/pkg/models"
-	"github.com/haapjari/glass/pkg/utils"
+	"github.com/haapjari/glsgen/pkg/models"
+	"github.com/haapjari/glsgen/pkg/utils"
 
 	"github.com/spf13/viper"
 	"gorm.io/driver/postgres"

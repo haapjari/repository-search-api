@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/haapjari/glass/pkg/router"
+	"github.com/haapjari/glsgen/pkg/router"
 )
 
 func main() {

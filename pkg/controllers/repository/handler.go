@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/haapjari/glass/pkg/models"
-	"github.com/haapjari/glass/pkg/plugins/goplg"
-	"github.com/haapjari/glass/pkg/utils"
+	"github.com/haapjari/glsgen/pkg/models"
+	"github.com/haapjari/glsgen/pkg/plugins/goplg"
+	"github.com/haapjari/glsgen/pkg/utils"
 	"gorm.io/gorm"
 )
 
