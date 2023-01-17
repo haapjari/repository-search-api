@@ -23,67 +23,28 @@ func isLocalPath(path string) bool {
 	return strings.HasPrefix(path, "./")
 }
 
+// TODO: Optimize
 func (g *GoPlugin) repositoryExists(r models.Repository) bool {
-	existingRepos := g.getAllRepositories()
-	var mutex sync.Mutex
-	var waitGroup sync.WaitGroup
-	semaphore := make(chan int, g.MaxRoutines)
-	var exists bool
+	repositoryUrl := r.RepositoryUrl
 
-	for _, existingRepo := range existingRepos {
-		waitGroup.Add(1)
-		semaphore <- 1
-		go func(existingRepo models.Repository) {
-			if existingRepo.RepositoryUrl == r.RepositoryUrl {
-				mutex.Lock()
-				exists = true
-				mutex.Unlock()
-			}
-			defer func() {
-				<-semaphore
-				waitGroup.Done()
-			}()
-		}(existingRepo)
-	}
-	defer func() {
-		<-semaphore
-		waitGroup.Done()
-	}()
+	var repository models.Repository
+	g.DatabaseClient.Table("repositories").Where("repository_url = ?", repositoryUrl).First(&repository)
 
-	return exists
+	return repository.Id > 0
 }
 
+// TODO: Optimize
 func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
-	existingRepos := g.getAllRepositories()
-	var enriched bool
-	var enrichedMutex sync.Mutex
-	var waitGroup sync.WaitGroup
-	semaphore := make(chan int, g.MaxRoutines)
+	var queriedRepository models.Repository
+	repositoryUrl := r.RepositoryUrl
 
-	for _, existingRepo := range existingRepos {
-		waitGroup.Add(1)
-		semaphore <- 1
-		go func(existingRepo models.Repository) {
-			if existingRepo.RepositoryUrl == r.RepositoryUrl {
-				if existingRepo.OpenIssueCount != "" && existingRepo.ClosedIssueCount != "" && existingRepo.CommitCount != "" && existingRepo.RepositoryType != "" && existingRepo.PrimaryLanguage != "" && existingRepo.CreationDate != "" && existingRepo.StargazerCount != "" && existingRepo.LicenseInfo != "" && existingRepo.LatestRelease != "" {
-					enrichedMutex.Lock()
-					enriched = true
-					enrichedMutex.Unlock()
-				}
-			}
-			defer func() {
-				<-semaphore
-				waitGroup.Done()
-			}()
-		}(existingRepo)
-	}
-	waitGroup.Wait()
+	g.DatabaseClient.Table("repositories").Where("repository_url = ?", repositoryUrl).First(&queriedRepository)
 
-	for !(len(semaphore) == 0) {
-		continue
+	if queriedRepository.OpenIssueCount != "" || queriedRepository.ClosedIssueCount != "" || queriedRepository.CommitCount != "" || queriedRepository.RepositoryType != "" || queriedRepository.PrimaryLanguage != "" || queriedRepository.CreationDate != "" || queriedRepository.StargazerCount != "" || queriedRepository.LicenseInfo != "" || queriedRepository.LatestRelease != "" {
+		return true
 	}
 
-	return enriched
+	return false
 }
 
 func (g *GoPlugin) getAllRepositories() []models.Repository {

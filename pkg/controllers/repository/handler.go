@@ -121,6 +121,10 @@ func (h *Handler) HandleGetRepositoryMetadata() {
 
 	if h.Context.Query("type") == "go" {
 		plugin := goplg.NewGoPlugin(h.Database)
-		plugin.GenerateRepositoryData(count)
+		processedRepositories := plugin.GenerateRepositoryData(count)
+
+		if processedRepositories != nil {
+			h.Context.IndentedJSON(200, processedRepositories)
+		}
 	}
 }

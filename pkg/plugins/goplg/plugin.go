@@ -60,17 +60,23 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 }
 
 // Entrypoint for the Handler.
-func (g *GoPlugin) GenerateRepositoryData(c int) {
-	g.fetchRepositories(c)
-	g.pruneDuplicates()
-	g.processRepositories()
-	g.processLibraries()
+func (g *GoPlugin) GenerateRepositoryData(c int) []models.Repository {
+	unprocessedRepositories := g.fetchRepositories(c)
+	repositoriesWithoutLibrarySize := g.processRepositories(unprocessedRepositories)
+	processedRepositories := g.processLibraries(repositoriesWithoutLibrarySize)
+
+	return processedRepositories
+	// TODO
+	// g.fixBrokenEntries()
+	// g.pruneDuplicates()
 }
 
 // Queries SourceGraph and GitHub GraphQL API's, and saves the metadata from the queries
 // to database table "repositories".
-func (g *GoPlugin) fetchRepositories(count int) {
-	log.Println("Fetching repositories.")
+func (g *GoPlugin) fetchRepositories(count int) []models.Repository {
+	log.Println("Fetching repositories...")
+
+	var newRepositories []models.Repository
 
 	queryString := `{
 		search(query: "lang:go + AND select:repo AND repohasfile:go.mod AND count:` + strconv.Itoa(count) + `", version:V2) { results {
@@ -110,19 +116,28 @@ func (g *GoPlugin) fetchRepositories(count int) {
 
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan int, g.MaxRoutines)
+	var mu sync.Mutex
+
+	parser := NewParser()
 
 	for i := 0; i < sourceGraphResponseLength; i++ {
 		waitGroup.Add(1)
 		semaphore <- 1
 		go func(i int) {
-			repository := models.Repository{RepositoryName: repositories[i].Name, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
+			_, projectName := parser.ParseRepository(repositories[i].Name)
+			repository := models.Repository{RepositoryName: projectName, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
 			if !g.repositoryExists(repository) {
 				log.Println("Database entry from: " + repository.RepositoryUrl)
 				g.DatabaseClient.Create(&repository)
+				mu.Lock()
+				newRepositories = append(newRepositories, repository)
+				mu.Unlock()
 			}
-			defer func() { <-semaphore }()
+			defer func() {
+				<-semaphore
+				waitGroup.Done()
+			}()
 		}(i)
-		waitGroup.Done()
 	}
 
 	waitGroup.Wait()
@@ -131,18 +146,17 @@ func (g *GoPlugin) fetchRepositories(count int) {
 		continue
 	}
 
-	repositoriesTable := g.getAllRepositories()
-
 	// Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
 	// repositories, and appends the database entries with Open Issue Count, Closed Issue Count,
 	// Commit Count, Original Codebase Size, Repository Type, Primary Language, Stargazers Count,
 	// Creation Date, License.
-	for i := 0; i < len(repositoriesTable); i++ {
+	// TODO: We could stress the PostgreSQL a less, if we woouldn't do the inputting to the database before.
+	for i := 0; i < len(newRepositories); i++ {
 		waitGroup.Add(1)
 		semaphore <- 1
 		go func(i int) {
-			if !g.hasBeenEnriched(repositoriesTable[i]) {
-				repositoryOwner, repositoryName := g.Parser.ParseRepository(repositoriesTable[i].RepositoryUrl)
+			if !g.hasBeenEnriched(newRepositories[i]) {
+				repositoryOwner, repositoryName := g.Parser.ParseRepository(newRepositories[i].RepositoryUrl)
 				queryStr := fmt.Sprintf(`{
 					repository(owner: "%s", name: "%s") {
 						defaultBranchRef {
@@ -201,12 +215,12 @@ func (g *GoPlugin) fetchRepositories(count int) {
 
 				var currentRepository models.Repository
 
-				if err := g.DatabaseClient.Where("repository_url = ?", repositoriesTable[i].RepositoryUrl).First(&currentRepository).Error; err != nil {
+				if err := g.DatabaseClient.Where("repository_url = ?", newRepositories[i].RepositoryUrl).First(&currentRepository).Error; err != nil {
 					utils.CheckErr(err)
 				}
 
 				currentRepository.RepositoryName = repositoryName
-				currentRepository.RepositoryUrl = repositoriesTable[i].RepositoryUrl
+				currentRepository.RepositoryUrl = newRepositories[i].RepositoryUrl
 				currentRepository.OpenIssueCount = strconv.Itoa(gitHubResponseStruct.Data.Repository.OpenIssues.TotalCount)
 				currentRepository.ClosedIssueCount = strconv.Itoa(gitHubResponseStruct.Data.Repository.ClosedIssues.TotalCount)
 				currentRepository.CommitCount = strconv.Itoa(gitHubResponseStruct.Data.Repository.DefaultBranchRef.Target.History.TotalCount)
@@ -230,12 +244,13 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	for !(len(semaphore) == 0) {
 		continue
 	}
+
+	return newRepositories
 }
 
 // Processes entities from the database table "repositories", and calculates the amount
 // of code in the project.
-func (g *GoPlugin) processRepositories() {
-	repositories := g.getAllRepositories()
+func (g *GoPlugin) processRepositories(unprocessedRepositories []models.Repository) []models.Repository {
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan int, g.MaxRoutines)
 	var goModsMutex sync.Mutex
@@ -248,136 +263,107 @@ func (g *GoPlugin) processRepositories() {
 	}
 
 	// Append the https:// and .git prefix and postfix the RepositoryUrl variables.
-	for i := 0; i < len(repositories); i++ {
-		waitGroup.Add(1)
-		semaphore <- 1
-		go func(i int) {
-			if repositories[i].OriginalCodebaseSize == "" {
-				log.Println("Processing repository: " + repositories[i].RepositoryName)
+	for i := 0; i < len(unprocessedRepositories); i++ {
+		var databaseEntry models.Repository
+		g.DatabaseClient.Table("repositories").Where("repository_url = ?", unprocessedRepositories[i].RepositoryUrl).First(&databaseEntry)
+		// If the field "OriginalCodebaseSize" is empty, but it has a name, that means
+		// it exists in the database, but is not analyzed yet -> proceed.
+		if databaseEntry.OriginalCodebaseSize == "" && databaseEntry.RepositoryName != "" {
+			waitGroup.Add(1)
+			semaphore <- 1
+			go func(i int) {
+				log.Println("Processing repository: " + unprocessedRepositories[i].RepositoryName)
+				repositoryUrl := "https://" + unprocessedRepositories[i].RepositoryUrl + ".git"
 
-				repositoryUrl := "https://" + repositories[i].RepositoryUrl + ".git"
-
-				err := utils.Command("git", "clone", "--depth", "1", repositoryUrl, "tmp"+"/"+repositories[i].RepositoryName)
+				err := utils.Command("git", "clone", "--depth", "1", repositoryUrl, "tmp"+"/"+unprocessedRepositories[i].RepositoryName)
 				if err != nil {
 					fmt.Printf("error while cloning repository %s: %s, skipping...\n", repositoryUrl, err)
 				}
 
-				repositoryCodeLines, err := g.calculateCodeLines("tmp" + "/" + repositories[i].RepositoryName)
+				repositoryCodeLines, err := g.calculateCodeLines("tmp" + "/" + unprocessedRepositories[i].RepositoryName)
 				if err != nil {
 					fmt.Print(err.Error())
 				}
 
 				goModsMutex.Lock()
-				goMod, err := parseGoMod(repositories[i].RepositoryName + "/" + "go.mod")
+				goMod, err := parseGoMod(unprocessedRepositories[i].RepositoryName + "/" + "go.mod")
 				if err != nil {
-					fmt.Printf("error, while parsing the modfile of "+repositories[i].RepositoryName+": %s", err)
+					fmt.Printf("error, while parsing the modfile of "+unprocessedRepositories[i].RepositoryName+": %s", err)
 				}
-				g.GoMods[repositories[i].RepositoryUrl] = goMod
+				g.GoMods[unprocessedRepositories[i].RepositoryUrl] = goMod
 				goModsMutex.Unlock()
 
-				g.generateDependenciesMap(repositories[i])
+				g.generateDependenciesMap(unprocessedRepositories[i])
 
 				var repositoryStruct models.Repository
-
-				if err := g.DatabaseClient.Where("repository_url = ?", repositories[i].RepositoryUrl).First(&repositoryStruct).Error; err != nil {
+				if err := g.DatabaseClient.Where("repository_url = ?", unprocessedRepositories[i].RepositoryUrl).First(&repositoryStruct).Error; err != nil {
 					utils.CheckErr(err)
 				}
 
 				repositoryStruct.OriginalCodebaseSize = strconv.Itoa(repositoryCodeLines)
+				unprocessedRepositories[i] = repositoryStruct
 
 				g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
-			}
-			defer func() {
-				waitGroup.Done()
-				<-semaphore
-			}()
-		}(i)
-	}
-	waitGroup.Wait()
-	g.pruneTemporaryFolder()
 
-	for !(len(semaphore) == 0) {
-		continue
+				defer func() {
+					waitGroup.Done()
+					<-semaphore
+				}()
+			}(i)
+		}
+		waitGroup.Wait()
+		g.pruneTemporaryFolder()
+
+		for !(len(semaphore) == 0) {
+			continue
+		}
 	}
+
+	return unprocessedRepositories
 }
 
 // Loop through repositories, generate the dependency map from the go.mod files of the
 // repositories, download the dependencies to the local disk, calculate their sizes and
 // save the values to the database.
-func (g *GoPlugin) processLibraries() {
-	repositories := g.getAllRepositories()
+func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repository) []models.Repository {
 	libraries := g.DependencyMap
-	var waitGroup sync.WaitGroup
-	var readWriteMutex sync.RWMutex
-	semaphore := make(chan int, g.MaxRoutines)
 
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
 
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
 
-	for i := 0; i < len(repositories); i++ {
-		repositoryName := repositories[i].RepositoryName
-		repositoryUrl := repositories[i].RepositoryUrl
+	for i := 0; i < len(repositoriesWithoutLibrarySize); i++ {
+		repositoryName := repositoriesWithoutLibrarySize[i].RepositoryName
+		repositoryUrl := repositoriesWithoutLibrarySize[i].RepositoryUrl
 		totalLibraryCodeLines := 0
+		libraryCodebaseSize := repositoriesWithoutLibrarySize[i].LibraryCodebaseSize
 
-		// If the libraries have already been analyzed, continue to the next round of the
-		// loop.
-		if !(repositories[i].LibraryCodebaseSize == "") {
-			log.Println(repositories[i].RepositoryName + " libraries already processed.")
-			continue
-		}
-
-		if repositories[i].LibraryCodebaseSize == "" {
-			log.Println(repositories[i].RepositoryName + " processing " + strconv.Itoa(len(libraries[repositoryName])) + " libraries...")
-
+		if libraryCodebaseSize == "" {
+			log.Println(repositoriesWithoutLibrarySize[i].RepositoryName + " processing " + strconv.Itoa(len(libraries[repositoryName])) + " libraries...")
 			// Loop through the libraries, which are saved to the map, where dependencies
 			// are accessible by repository name. Download them to the local disk, calculate
 			// their sizes and append to the 'l' -variable.
 			for j := 0; j < len(libraries[repositoryName]); j++ {
 				librariesLeft := len(libraries[repositoryName]) - j
-				log.Println(repositories[i].RepositoryName + " has " + strconv.Itoa(librariesLeft) + " libraries to process...")
-
-				waitGroup.Add(1)
-				semaphore <- 1
-				go func(j int) {
-					defer func() {
-						waitGroup.Done()
-						<-semaphore
-					}()
-
-					readWriteMutex.RLock()
-					value, ok := g.LibraryCache[libraries[repositoryName][j]]
-					readWriteMutex.RUnlock()
-					if ok {
-						readWriteMutex.Lock()
-						totalLibraryCodeLines += value
-						readWriteMutex.Unlock()
-						return
-					} else {
-						// This is not the most elegant way, and it's using more computation without mutexes.
-						// multiple goroutines crash, as they are accessing same go.mod -file at it might be on wrong
-						// state on their perspective. Every library is still downloaded the system. Having this without
-						// lock increases performance substantionally. If there are issues and unexpected results,
-						// "go get" part might need to be protected with a lock.
-						err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraries[repositoryName][j]))
-						if err != nil {
-							fmt.Printf("error while processing library %s: %s, skipping...\n", libraries[repositoryName][j], err)
-						}
-
-						libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][j]))
-						if err != nil {
-							fmt.Println("error, while calculating library code lines:", err.Error())
-						}
-
-						readWriteMutex.Lock()
-						g.LibraryCache[libraries[repositoryName][j]] = libraryCodeLines
-						totalLibraryCodeLines += libraryCodeLines
-						readWriteMutex.Unlock()
+				log.Println(repositoriesWithoutLibrarySize[i].RepositoryName + " has " + strconv.Itoa(librariesLeft) + " libraries to process...")
+				value, ok := g.LibraryCache[libraries[repositoryName][j]]
+				if ok {
+					totalLibraryCodeLines += value
+				} else {
+					downloadableFormatUrl := downloadableFormat(libraries[repositoryName][j])
+					err := utils.Command("go", "get", "-d", "-v", downloadableFormatUrl)
+					if err != nil {
+						fmt.Printf("error while processing library %s: %s, skipping...\n", libraries[repositoryName][j], err)
 					}
-				}(j)
+					libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][j]))
+					if err != nil {
+						fmt.Println("error, while calculating library code lines:", err.Error())
+					}
+					g.LibraryCache[libraries[repositoryName][j]] = libraryCodeLines
+					totalLibraryCodeLines += libraryCodeLines
+				}
 			}
-			waitGroup.Wait()
 
 			g.pruneTemporaryFolder()
 
@@ -392,22 +378,22 @@ func (g *GoPlugin) processLibraries() {
 
 			repositoryStruct.LibraryCodebaseSize = strconv.Itoa(totalLibraryCodeLines)
 			g.DatabaseClient.Model(&repositoryStruct).Updates(repositoryStruct)
+
+			repositoriesWithoutLibrarySize[i] = repositoryStruct
 		}
 	}
 
-	for !(len(semaphore) == 0) {
-		continue
-	}
-
-	close(semaphore)
 	os.Setenv("GOPATH", utils.GetGoPath())
 	utils.RemoveFiles("go.mod", "go.sum")
 	utils.CopyFile("go.mod.bak", "go.mod")
 	utils.CopyFile("go.sum.bak", "go.sum")
 	utils.RemoveFiles("go.mod.bak", "go.sum.bak")
+
+	return repositoriesWithoutLibrarySize
 }
 
 // Prunes the duplicate entries from the repository.
+// TODO: Refactor this to delete only single duplicate repository. Now it's pretty heavy, since it goes through all the repositories twice.
 func (g *GoPlugin) pruneDuplicates() {
 	repositories := g.getAllRepositories()
 	duplicateRepositories := g.findDuplicates(repositories)
