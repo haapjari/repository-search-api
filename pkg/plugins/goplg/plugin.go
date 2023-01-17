@@ -336,7 +336,7 @@ func (g *GoPlugin) processLibraries() {
 			// their sizes and append to the 'l' -variable.
 			for j := 0; j < len(libraries[repositoryName]); j++ {
 				librariesLeft := len(libraries[repositoryName]) - j
-				log.Println(repositories[i].RepositoryName + " has " + strconv.Itoa(librariesLeft) + " to process...")
+				log.Println(repositories[i].RepositoryName + " has " + strconv.Itoa(librariesLeft) + " libraries to process...")
 
 				waitGroup.Add(1)
 				semaphore <- 1
