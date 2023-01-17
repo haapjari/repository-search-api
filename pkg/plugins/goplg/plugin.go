@@ -325,10 +325,9 @@ func (g *GoPlugin) processRepositories(unprocessedRepositories []models.Reposito
 // Loop through repositories, generate the dependency map from the go.mod files of the
 // repositories, download the dependencies to the local disk, calculate their sizes and
 // save the values to the database.
+// TODO: Goroutines
 func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repository) []models.Repository {
 	libraries := g.DependencyMap
-
-	os.Setenv("GOPATH", utils.GetProcessDirPath())
 
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
@@ -351,12 +350,16 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 				if ok {
 					totalLibraryCodeLines += value
 				} else {
+					os.Setenv("GOPATH", utils.GetProcessDirPath())
 					downloadableFormatUrl := downloadableFormat(libraries[repositoryName][j])
 					err := utils.Command("go", "get", "-d", "-v", downloadableFormatUrl)
 					if err != nil {
 						fmt.Printf("error while processing library %s: %s, skipping...\n", libraries[repositoryName][j], err)
 					}
-					libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][j]))
+					os.Setenv("GOPATH", utils.GetGoPath())
+
+					libraryPath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][j])
+					libraryCodeLines, err := g.calculateCodeLines(libraryPath)
 					if err != nil {
 						fmt.Println("error, while calculating library code lines:", err.Error())
 					}
@@ -383,7 +386,6 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 		}
 	}
 
-	os.Setenv("GOPATH", utils.GetGoPath())
 	utils.RemoveFiles("go.mod", "go.sum")
 	utils.CopyFile("go.mod.bak", "go.mod")
 	utils.CopyFile("go.sum.bak", "go.sum")
