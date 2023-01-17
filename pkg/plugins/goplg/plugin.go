@@ -329,12 +329,15 @@ func (g *GoPlugin) processLibraries() {
 		}
 
 		if repositories[i].LibraryCodebaseSize == "" {
-			log.Println(repositories[i].RepositoryName + " processing libraries...")
+			log.Println(repositories[i].RepositoryName + " processing " + strconv.Itoa(len(libraries[repositoryName])) + " libraries...")
 
 			// Loop through the libraries, which are saved to the map, where dependencies
 			// are accessible by repository name. Download them to the local disk, calculate
 			// their sizes and append to the 'l' -variable.
 			for j := 0; j < len(libraries[repositoryName]); j++ {
+				librariesLeft := len(libraries[repositoryName]) - j
+				log.Println(repositories[i].RepositoryName + " has " + strconv.Itoa(librariesLeft) + " to process...")
+
 				waitGroup.Add(1)
 				semaphore <- 1
 				go func(j int) {
