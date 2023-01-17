@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -36,21 +37,37 @@ func (g *GoPlugin) repositoryExists(r models.Repository) bool {
 
 func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
 	existingRepos := g.getAllRepositories()
+	var enriched bool
+	var enrichedMutex sync.Mutex
+	var waitGroup sync.WaitGroup
+	semaphore := make(chan int, g.MaxRoutines)
 
 	for _, existingRepo := range existingRepos {
-		if existingRepo.RepositoryUrl == r.RepositoryUrl {
-			if existingRepo.OpenIssueCount == "" || existingRepo.ClosedIssueCount == "" || existingRepo.CommitCount == "" || existingRepo.RepositoryType == "" || existingRepo.PrimaryLanguage == "" || existingRepo.CreationDate == "" || existingRepo.StargazerCount == "" || existingRepo.LicenseInfo == "" || existingRepo.LatestRelease == "" {
-				return false
+		waitGroup.Add(1)
+		semaphore <- 1
+		go func(existingRepo models.Repository) {
+			if existingRepo.RepositoryUrl == r.RepositoryUrl {
+				if existingRepo.OpenIssueCount != "" && existingRepo.ClosedIssueCount != "" && existingRepo.CommitCount != "" && existingRepo.RepositoryType != "" && existingRepo.PrimaryLanguage != "" && existingRepo.CreationDate != "" && existingRepo.StargazerCount != "" && existingRepo.LicenseInfo != "" && existingRepo.LatestRelease != "" {
+					enrichedMutex.Lock()
+					enriched = true
+					enrichedMutex.Unlock()
+				}
 			}
-		}
+			defer func() { <-semaphore }()
+			waitGroup.Done()
+		}(existingRepo)
+	}
+	waitGroup.Wait()
+
+	for !(len(semaphore) == 0) {
+		continue
 	}
 
-	return true
+	return enriched
 }
 
 func (g *GoPlugin) getAllRepositories() []models.Repository {
 	var repositories []models.Repository
-
 	g.DatabaseClient.Find(&repositories)
 
 	return repositories

@@ -117,7 +117,7 @@ func (g *GoPlugin) fetchRepositories(count int) {
 		go func(i int) {
 			repository := models.Repository{RepositoryName: repositories[i].Name, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
 			if !g.repositoryExists(repository) {
-				log.Println("Writing a database entry from: " + repository.RepositoryUrl)
+				log.Println("Database entry from: " + repository.RepositoryUrl)
 				g.DatabaseClient.Create(&repository)
 			}
 			defer func() { <-semaphore }()
