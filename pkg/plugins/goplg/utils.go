@@ -39,7 +39,7 @@ func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
 
 	for _, existingRepo := range existingRepos {
 		if existingRepo.RepositoryUrl == r.RepositoryUrl {
-			if existingRepo.OpenIssueCount == "" && existingRepo.ClosedIssueCount == "" && existingRepo.CommitCount == "" && existingRepo.RepositoryType == "" && existingRepo.PrimaryLanguage == "" && existingRepo.CreationDate == "" && existingRepo.StargazerCount == "" && existingRepo.LicenseInfo == "" && existingRepo.LatestRelease == "" {
+			if existingRepo.OpenIssueCount == "" || existingRepo.ClosedIssueCount == "" || existingRepo.CommitCount == "" || existingRepo.RepositoryType == "" || existingRepo.PrimaryLanguage == "" || existingRepo.CreationDate == "" || existingRepo.StargazerCount == "" || existingRepo.LicenseInfo == "" || existingRepo.LatestRelease == "" {
 				return false
 			}
 		}

@@ -139,8 +139,8 @@ func (g *GoPlugin) fetchRepositories(count int) {
 	// Creation Date, License.
 	for i := 0; i < len(repositoriesTable); i++ {
 		waitGroup.Add(1)
+		semaphore <- 1
 		go func(i int) {
-			semaphore <- 1
 			if !g.hasBeenEnriched(repositoriesTable[i]) {
 				repositoryOwner, repositoryName := g.Parser.ParseRepository(repositoriesTable[i].RepositoryUrl)
 				queryStr := fmt.Sprintf(`{
