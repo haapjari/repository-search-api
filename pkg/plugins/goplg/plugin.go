@@ -407,7 +407,7 @@ func (g *GoPlugin) processLibraries() {
 // Prunes the duplicate entries from the repository.
 func (g *GoPlugin) pruneDuplicates() {
 	repositories := g.getAllRepositories()
-	duplicateRepositories := findDuplicates(repositories)
+	duplicateRepositories := g.findDuplicates(repositories)
 
 	for i := 0; i < len(duplicateRepositories); i++ {
 		var repository models.Repository

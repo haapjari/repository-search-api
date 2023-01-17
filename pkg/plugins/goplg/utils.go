@@ -25,14 +25,32 @@ func isLocalPath(path string) bool {
 
 func (g *GoPlugin) repositoryExists(r models.Repository) bool {
 	existingRepos := g.getAllRepositories()
+	var mutex sync.Mutex
+	var waitGroup sync.WaitGroup
+	semaphore := make(chan int, g.MaxRoutines)
+	var exists bool
 
 	for _, existingRepo := range existingRepos {
-		if existingRepo.RepositoryUrl == r.RepositoryUrl {
-			return true
-		}
+		waitGroup.Add(1)
+		semaphore <- 1
+		go func(existingRepo models.Repository) {
+			if existingRepo.RepositoryUrl == r.RepositoryUrl {
+				mutex.Lock()
+				exists = true
+				mutex.Unlock()
+			}
+			defer func() {
+				<-semaphore
+				waitGroup.Done()
+			}()
+		}(existingRepo)
 	}
+	defer func() {
+		<-semaphore
+		waitGroup.Done()
+	}()
 
-	return false
+	return exists
 }
 
 func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
@@ -53,8 +71,10 @@ func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
 					enrichedMutex.Unlock()
 				}
 			}
-			defer func() { <-semaphore }()
-			waitGroup.Done()
+			defer func() {
+				<-semaphore
+				waitGroup.Done()
+			}()
 		}(existingRepo)
 	}
 	waitGroup.Wait()
@@ -104,22 +124,37 @@ func (g *GoPlugin) pruneTemporaryFolder() {
 
 // Parse repository name from url.
 // Creates a slice of repositories, which are duplicates in an original list.
-func findDuplicates(repositories []models.Repository) []models.Repository {
-	// Create a map to store the names of the repositories that we've seen so far
+func (g *GoPlugin) findDuplicates(repositories []models.Repository) []models.Repository {
 	seenRepositories := make(map[string]bool)
-
-	// Create a slice to store the duplicate entries
 	duplicateEntries := []models.Repository{}
+	var wg sync.WaitGroup
+	semaphore := make(chan int, g.MaxRoutines)
+	var mu sync.Mutex
 
-	// Iterate through the slice of repositories
 	for _, repository := range repositories {
-		// If we've already seen this repository, add it to the slice of duplicate entries
-		if seenRepositories[repository.RepositoryName] {
-			duplicateEntries = append(duplicateEntries, repository)
-		} else {
-			// Otherwise, mark the repository as seen
-			seenRepositories[repository.RepositoryName] = true
-		}
+		wg.Add(1)
+		semaphore <- 1
+
+		go func(repository models.Repository) {
+			if seenRepositories[repository.RepositoryName] {
+				mu.Lock()
+				duplicateEntries = append(duplicateEntries, repository)
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				seenRepositories[repository.RepositoryName] = true
+				mu.Unlock()
+			}
+			defer func() {
+				<-semaphore
+				wg.Done()
+			}()
+		}(repository)
+	}
+	wg.Wait()
+
+	for !(len(semaphore) == 0) {
+		continue
 	}
 
 	return duplicateEntries
