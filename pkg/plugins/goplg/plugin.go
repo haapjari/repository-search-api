@@ -331,6 +331,7 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
+	os.Setenv("GOPATH", utils.GetProcessDirPath())
 
 	for i := 0; i < len(repositoriesWithoutLibrarySize); i++ {
 		repositoryName := repositoriesWithoutLibrarySize[i].RepositoryName
@@ -350,13 +351,12 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 				if ok {
 					totalLibraryCodeLines += value
 				} else {
-					os.Setenv("GOPATH", utils.GetProcessDirPath())
+					// Syncronising these parts with a channel.
 					downloadableFormatUrl := downloadableFormat(libraries[repositoryName][j])
 					err := utils.Command("go", "get", "-d", "-v", downloadableFormatUrl)
 					if err != nil {
 						fmt.Printf("error while processing library %s: %s, skipping...\n", libraries[repositoryName][j], err)
 					}
-					os.Setenv("GOPATH", utils.GetGoPath())
 
 					libraryPath := utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][j])
 					libraryCodeLines, err := g.calculateCodeLines(libraryPath)
@@ -365,6 +365,7 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 					}
 					g.LibraryCache[libraries[repositoryName][j]] = libraryCodeLines
 					totalLibraryCodeLines += libraryCodeLines
+
 				}
 			}
 
@@ -385,6 +386,8 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 			repositoriesWithoutLibrarySize[i] = repositoryStruct
 		}
 	}
+
+	os.Setenv("GOPATH", utils.GetGoPath())
 
 	utils.RemoveFiles("go.mod", "go.sum")
 	utils.CopyFile("go.mod.bak", "go.mod")
