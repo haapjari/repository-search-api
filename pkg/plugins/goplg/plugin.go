@@ -325,78 +325,57 @@ func (g *GoPlugin) processRepositories(unprocessedRepositories []models.Reposito
 // Loop through repositories, generate the dependency map from the go.mod files of the
 // repositories, download the dependencies to the local disk, calculate their sizes and
 // save the values to the database.
-// TODO: Goroutines
 func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repository) []models.Repository {
 	libraries := g.DependencyMap
-
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
-
-	for i := 0; i < len(repositoriesWithoutLibrarySize); i++ {
-		repositoryName := repositoriesWithoutLibrarySize[i].RepositoryName
-		repositoryUrl := repositoriesWithoutLibrarySize[i].RepositoryUrl
+	for i, r := range repositoriesWithoutLibrarySize {
+		repositoryName := r.RepositoryName
+		repositoryUrl := r.RepositoryUrl
 		totalLibraryCodeLines := 0
-		libraryCodebaseSize := repositoriesWithoutLibrarySize[i].LibraryCodebaseSize
+		if r.LibraryCodebaseSize == "" {
+			log.Println(r.RepositoryName + " processing " + strconv.Itoa(len(libraries[repositoryName])) + " libraries...")
 
-		if libraryCodebaseSize == "" {
-			log.Println(repositoriesWithoutLibrarySize[i].RepositoryName + " processing " + strconv.Itoa(len(libraries[repositoryName])) + " libraries...")
-			calculateJobs := make(chan int)
-			var mu sync.Mutex
-			// Loop through the libraries, which are saved to the map, where dependencies
-			// are accessible by repository name. Download them to the local disk, calculate
-			// their sizes and append to the 'l' -variable.
-			for {
-				for j := 0; j < len(libraries[repositoryName]); j++ {
-					go func(j int) {
-						mu.Lock()
-						value, ok := g.LibraryCache[libraries[repositoryName][j]]
-						mu.Unlock()
-						if ok {
-							mu.Lock()
-							totalLibraryCodeLines += value
-							mu.Unlock()
-						} else {
-							err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraries[repositoryName][j]))
-							// Sleep, so we don't exhaust go.mod file.
-							if err != nil {
-								fmt.Printf("error while processing library %s: %s, skipping...\n", libraries[repositoryName][j], err)
-							}
-							calculateJobs <- j
-						}
-					}(j)
-					if j == len(libraries[repositoryName])-1 {
-						close(calculateJobs)
-					}
+			// Calculate the Cached Values.
+			for _, libraryUrl := range libraries[repositoryName] {
+				value, ok := g.LibraryCache[libraryUrl]
+				if ok {
+					totalLibraryCodeLines += value
 				}
+			}
 
+			calculateJobs := make(chan int)
+			done := make(chan bool)
+
+			// Producer
+			go func() {
+				for j, libraryUrl := range libraries[repositoryName] {
+					err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraryUrl))
+					if err != nil {
+						fmt.Printf("error while processing library %s: %s, skipping...\n", libraryUrl, err)
+					}
+					calculateJobs <- j
+				}
+				done <- true
+			}()
+
+			// Consumer
+			go func() {
 				for jobIndex := range calculateJobs {
 					log.Println("Processing calculation jobs, " + strconv.Itoa(len(calculateJobs)) + " remaining...")
-					go func(jobIndex int) {
-						mu.Lock()
-						value, ok := g.LibraryCache[libraries[repositoryName][jobIndex]]
-						mu.Unlock()
-						if ok {
-							mu.Lock()
-							totalLibraryCodeLines += value
-							mu.Unlock()
-						} else {
-							libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][jobIndex]))
-							if err != nil {
-								fmt.Println("error, while calculating library code lines:", err.Error())
-							}
-							mu.Lock()
-							g.LibraryCache[libraries[repositoryName][jobIndex]] = libraryCodeLines
-							totalLibraryCodeLines += libraryCodeLines
-							mu.Unlock()
-						}
-					}(jobIndex)
 
+					libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][jobIndex]))
+					if err != nil {
+						fmt.Println("error, while calculating library code lines:", err.Error())
+					}
+
+					g.LibraryCache[libraries[repositoryName][jobIndex]] = libraryCodeLines
+					totalLibraryCodeLines += libraryCodeLines
 				}
+			}()
 
-				// When the execution is here, break out of the infinite loop.
-				break
-			}
+			<-done
 
 			g.pruneTemporaryFolder()
 

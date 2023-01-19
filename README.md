@@ -63,7 +63,8 @@ MAX_GOROUTINES=64
 
 ## TODO
 
-- TBD
+- Read: https://betterprogramming.pub/hands-on-go-concurrency-the-producer-consumer-pattern-c42aab4e3bd2
+- Producer - Consumer
 
 ## TODO (Out of the Thesis Scope)
 
