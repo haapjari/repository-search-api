@@ -328,6 +328,7 @@ func (g *GoPlugin) processRepositories(unprocessedRepositories []models.Reposito
 func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repository) []models.Repository {
 	libraries := g.DependencyMap
 	var mu sync.Mutex
+	var wg sync.WaitGroup
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
@@ -356,6 +357,8 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 					mu.Lock()
 					_, ok := g.LibraryCache[libraryUrl]
 					mu.Unlock()
+					//	wg.Add(1)
+					//		go func(j int, libraryUrl string) {
 					if !ok {
 						err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraryUrl))
 						if err != nil {
@@ -363,24 +366,34 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 						}
 						calculateJobs <- j
 					}
+					//				defer wg.Done()
+					//					}(j, libraryUrl)
 				}
+				//			wg.Wait()
 				done <- true
 			}()
 
 			// Consumer
-			// TODO: Parallelize the "calculateCodeLines" here.
 			go func() {
 				for jobIndex := range calculateJobs {
-					libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][jobIndex]))
-					if err != nil {
-						fmt.Println("error, while calculating library code lines:", err.Error())
-					}
-
-					g.LibraryCache[libraries[repositoryName][jobIndex]] = libraryCodeLines
-					totalLibraryCodeLines += libraryCodeLines
+					wg.Add(1)
+					go func(jobIndex int) {
+						mu.Lock()
+						libraryUrl := parseLibraryUrl(libraries[repositoryName][jobIndex])
+						mu.Unlock()
+						libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + libraryUrl)
+						if err != nil {
+							fmt.Println("error, while calculating library code lines:", err.Error())
+						}
+						mu.Lock()
+						g.LibraryCache[libraries[repositoryName][jobIndex]] = libraryCodeLines
+						totalLibraryCodeLines += libraryCodeLines
+						mu.Unlock()
+						defer wg.Done()
+					}(jobIndex)
 				}
 			}()
-
+			wg.Wait()
 			<-done
 			close(calculateJobs)
 
