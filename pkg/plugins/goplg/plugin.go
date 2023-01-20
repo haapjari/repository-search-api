@@ -340,6 +340,7 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 			log.Println(r.RepositoryName + " processing " + strconv.Itoa(len(libraries[repositoryName])) + " libraries...")
 
 			// Calculate the Cached Values.
+			// TODO: Parallelize this.
 			for _, libraryUrl := range libraries[repositoryName] {
 				value, ok := g.LibraryCache[libraryUrl]
 				if ok {
