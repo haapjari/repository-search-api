@@ -327,6 +327,7 @@ func (g *GoPlugin) processRepositories(unprocessedRepositories []models.Reposito
 // save the values to the database.
 func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repository) []models.Repository {
 	libraries := g.DependencyMap
+	var mu sync.Mutex
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
@@ -349,22 +350,27 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 			done := make(chan bool)
 
 			// Producer
+			// TODO: Parallelize the "go get's here"
 			go func() {
 				for j, libraryUrl := range libraries[repositoryName] {
-					err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraryUrl))
-					if err != nil {
-						fmt.Printf("error while processing library %s: %s, skipping...\n", libraryUrl, err)
+					mu.Lock()
+					_, ok := g.LibraryCache[libraryUrl]
+					mu.Unlock()
+					if !ok {
+						err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraryUrl))
+						if err != nil {
+							fmt.Printf("error while processing library %s: %s, skipping...\n", libraryUrl, err)
+						}
+						calculateJobs <- j
 					}
-					calculateJobs <- j
 				}
 				done <- true
 			}()
 
 			// Consumer
+			// TODO: Parallelize the "calculateCodeLines" here.
 			go func() {
 				for jobIndex := range calculateJobs {
-					log.Println("Processing calculation jobs, " + strconv.Itoa(len(calculateJobs)) + " remaining...")
-
 					libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + parseLibraryUrl(libraries[repositoryName][jobIndex]))
 					if err != nil {
 						fmt.Println("error, while calculating library code lines:", err.Error())
@@ -376,6 +382,7 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 			}()
 
 			<-done
+			close(calculateJobs)
 
 			g.pruneTemporaryFolder()
 
