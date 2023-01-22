@@ -356,6 +356,9 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 					mutex.Lock()
 					_, ok := g.LibraryCache[libraryUrl]
 					mutex.Unlock()
+					utils.RemoveFiles("go.mod", "go.sum")
+					utils.CopyFile("go.mod.bak", "go.mod")
+					utils.CopyFile("go.sum.bak", "go.sum")
 					producerWaitGroup.Add(1)
 					semaphore <- 1
 					go func(j int, libraryUrl string) {

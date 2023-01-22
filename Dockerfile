@@ -8,7 +8,9 @@ ENV         CGO_ENABLED=0
 
 WORKDIR     /go/src/
 
-COPY        . .
+COPY        go.sum .
+COPY        go.sum . 
+COPY        . . 
 
 RUN         apt-get update && apt-get upgrade -y
 RUN         apt-get install nano 
