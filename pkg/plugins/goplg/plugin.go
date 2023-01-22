@@ -66,9 +66,6 @@ func (g *GoPlugin) GenerateRepositoryData(c int) []models.Repository {
 	processedRepositories := g.processLibraries(repositoriesWithoutLibrarySize)
 
 	return processedRepositories
-	// TODO
-	// g.fixBrokenEntries()
-	// g.pruneDuplicates()
 }
 
 // Queries SourceGraph and GitHub GraphQL API's, and saves the metadata from the queries
@@ -150,7 +147,6 @@ func (g *GoPlugin) fetchRepositories(count int) []models.Repository {
 	// repositories, and appends the database entries with Open Issue Count, Closed Issue Count,
 	// Commit Count, Original Codebase Size, Repository Type, Primary Language, Stargazers Count,
 	// Creation Date, License.
-	// TODO: We could stress the PostgreSQL a less, if we woouldn't do the inputting to the database before.
 	for i := 0; i < len(newRepositories); i++ {
 		waitGroup.Add(1)
 		semaphore <- 1
@@ -340,7 +336,6 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 			log.Println(r.RepositoryName + " processing " + strconv.Itoa(len(libraries[repositoryName])) + " libraries...")
 
 			// Calculate the Cached Values.
-			// TODO: Parallelize this.
 			for _, libraryUrl := range libraries[repositoryName] {
 				value, ok := g.LibraryCache[libraryUrl]
 				if ok {
@@ -352,25 +347,25 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 			done := make(chan bool)
 
 			// Producer
-			// TODO: Parallelize the "go get's here"
+			// If the producer starts to lag out with the routines, cap them to core count.
 			go func() {
 				for j, libraryUrl := range libraries[repositoryName] {
 					mu.Lock()
 					_, ok := g.LibraryCache[libraryUrl]
 					mu.Unlock()
-					//	wg.Add(1)
-					//		go func(j int, libraryUrl string) {
-					if !ok {
-						err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraryUrl))
-						if err != nil {
-							fmt.Printf("error while processing library %s: %s, skipping...\n", libraryUrl, err)
+					wg.Add(1)
+					go func(j int, libraryUrl string) {
+						if !ok {
+							err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraryUrl))
+							if err != nil {
+								fmt.Printf("error while processing library %s: %s, skipping...\n", libraryUrl, err)
+							}
+							calculateJobs <- j
 						}
-						calculateJobs <- j
-					}
-					//				defer wg.Done()
-					//					}(j, libraryUrl)
+						defer wg.Done()
+					}(j, libraryUrl)
 				}
-				//			wg.Wait()
+				wg.Wait()
 				done <- true
 			}()
 
@@ -424,22 +419,6 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 	utils.RemoveFiles("go.mod.bak", "go.sum.bak")
 
 	return repositoriesWithoutLibrarySize
-}
-
-// Prunes the duplicate entries from the repository.
-// TODO: Refactor this to delete only single duplicate repository. Now it's pretty heavy, since it goes through all the repositories twice.
-func (g *GoPlugin) pruneDuplicates() {
-	repositories := g.getAllRepositories()
-	duplicateRepositories := g.findDuplicates(repositories)
-
-	for i := 0; i < len(duplicateRepositories); i++ {
-		var repository models.Repository
-
-		if err := g.DatabaseClient.Where("repository_url = ?", duplicateRepositories[i].RepositoryUrl).First(&repository).Error; err != nil {
-			utils.CheckErr(err)
-		}
-		g.DatabaseClient.Delete(&repository)
-	}
 }
 
 // Gets a list of repositories and returns a map of repository names and their dependencies,

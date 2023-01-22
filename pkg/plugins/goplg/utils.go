@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -23,7 +22,6 @@ func isLocalPath(path string) bool {
 	return strings.HasPrefix(path, "./")
 }
 
-// TODO: Optimize
 func (g *GoPlugin) repositoryExists(r models.Repository) bool {
 	repositoryUrl := r.RepositoryUrl
 
@@ -33,7 +31,6 @@ func (g *GoPlugin) repositoryExists(r models.Repository) bool {
 	return repository.Id > 0
 }
 
-// TODO: Optimize
 func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
 	var queriedRepository models.Repository
 	repositoryUrl := r.RepositoryUrl
@@ -45,13 +42,6 @@ func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
 	}
 
 	return false
-}
-
-func (g *GoPlugin) getAllRepositories() []models.Repository {
-	var repositories []models.Repository
-	g.DatabaseClient.Find(&repositories)
-
-	return repositories
 }
 
 // Calculates the lines of code using https://github.com/hhatto/gocloc
@@ -81,41 +71,6 @@ func (g *GoPlugin) pruneTemporaryFolder() {
 	utils.Command("chmod", "-R", "777", utils.GetProcessDirPath())
 	os.RemoveAll(utils.GetProcessDirPath())
 	os.MkdirAll(utils.GetProcessDirPath(), os.ModePerm)
-}
-
-// Parse repository name from url.
-// Creates a slice of repositories, which are duplicates in an original list.
-func (g *GoPlugin) findDuplicates(repositories []models.Repository) []models.Repository {
-	seenRepositories := make(map[string]bool)
-	duplicateEntries := []models.Repository{}
-	var wg sync.WaitGroup
-	semaphore := make(chan int, g.MaxRoutines)
-	var mu sync.Mutex
-
-	for _, repository := range repositories {
-		wg.Add(1)
-		semaphore <- 1
-		go func(repository models.Repository) {
-			mu.Lock()
-			if seenRepositories[repository.RepositoryName] {
-				duplicateEntries = append(duplicateEntries, repository)
-			} else {
-				seenRepositories[repository.RepositoryName] = true
-			}
-			mu.Unlock()
-			defer func() {
-				<-semaphore
-				wg.Done()
-			}()
-		}(repository)
-	}
-	wg.Wait()
-
-	for !(len(semaphore) == 0) {
-		continue
-	}
-
-	return duplicateEntries
 }
 
 // Check if a folder exists in the file system.
