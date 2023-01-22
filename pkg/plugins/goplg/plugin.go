@@ -325,7 +325,8 @@ func (g *GoPlugin) processRepositories(unprocessedRepositories []models.Reposito
 func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repository) []models.Repository {
 	libraries := g.DependencyMap
 	var mutex sync.Mutex
-	var waitGroup sync.WaitGroup
+	var producerWaitGroup sync.WaitGroup
+	var consumerWaitGroup sync.WaitGroup
 	semaphore := make(chan int, g.MaxRoutines)
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
@@ -355,7 +356,7 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 					mutex.Lock()
 					_, ok := g.LibraryCache[libraryUrl]
 					mutex.Unlock()
-					waitGroup.Add(1)
+					producerWaitGroup.Add(1)
 					semaphore <- 1
 					go func(j int, libraryUrl string) {
 						if !ok {
@@ -367,18 +368,18 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 						}
 						defer func() {
 							<-semaphore
-							waitGroup.Done()
+							producerWaitGroup.Done()
 						}()
 					}(j, libraryUrl)
 				}
-				waitGroup.Wait()
+				producerWaitGroup.Wait()
 				done <- true
 			}()
 
 			// Consumer
 			go func() {
 				for jobIndex := range calculateJobs {
-					waitGroup.Add(1)
+					consumerWaitGroup.Add(1)
 					go func(jobIndex int) {
 						mutex.Lock()
 						libraryUrl := parseLibraryUrl(libraries[repositoryName][jobIndex])
@@ -392,12 +393,13 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 						totalLibraryCodeLines += libraryCodeLines
 						mutex.Unlock()
 						defer func() {
-							waitGroup.Done()
+							consumerWaitGroup.Done()
 						}()
 					}(jobIndex)
 				}
 			}()
-			waitGroup.Wait()
+			producerWaitGroup.Wait()
+			consumerWaitGroup.Wait()
 			<-done
 			close(calculateJobs)
 

@@ -61,7 +61,9 @@ func (g *GoPlugin) calculateCodeLines(path string) (int, error) {
 	processor := gocloc.NewProcessor(languages, options)
 
 	result, err := processor.Analyze(paths)
-	utils.CheckErr(err)
+	if err != nil {
+		return 0, errors.New("Error - Failed to calculate lines of code.")
+	}
 
 	return int(result.Total.Code), nil
 }
