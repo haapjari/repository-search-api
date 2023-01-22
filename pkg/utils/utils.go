@@ -10,9 +10,26 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"time"
 )
+
+// Checks, whether the struct has empty fields.
+func CheckEmptyFields(s interface{}) bool {
+	var isEmpty = false
+	val := reflect.ValueOf(s).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		valueField := val.Field(i)
+		if valueField.Kind() == reflect.String {
+			if valueField.String() == "" {
+				isEmpty = true
+				break
+			}
+		}
+	}
+	return isEmpty
+}
 
 // removeDuplicates removes duplicates from a slice of strings
 func RemoveDuplicates(slice []string) []string {

@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -43,10 +41,6 @@ func GetRepositoryMetadata(c *gin.Context) {
 
 	if c.Query("type") == "go" {
 		h.HandleGetRepositoryMetadata()
-	}
-
-	if !(c.Query("type") == "go") {
-		c.JSON(http.StatusOK, gin.H{"data": "not supported"})
 	}
 }
 

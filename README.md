@@ -41,7 +41,6 @@ GOPATH=$HOME/go
 GOPATH_PROD=/go
 PROCESS_DIR=/path/to/workdir/tmp
 PROCESS_DIR_PROD=/path/to/workdir/tmp
-MAX_GOROUTINES=64
 ```
 
 ### Generate Metadata
@@ -63,7 +62,8 @@ MAX_GOROUTINES=64
 
 ## TODO
 
-- TBD
+- Read: https://betterprogramming.pub/hands-on-go-concurrency-the-producer-consumer-pattern-c42aab4e3bd2
+- Producer - Consumer
 
 ## TODO (Out of the Thesis Scope)
 

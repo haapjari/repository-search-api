@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -24,73 +23,25 @@ func isLocalPath(path string) bool {
 }
 
 func (g *GoPlugin) repositoryExists(r models.Repository) bool {
-	existingRepos := g.getAllRepositories()
-	var mutex sync.Mutex
-	var waitGroup sync.WaitGroup
-	semaphore := make(chan int, g.MaxRoutines)
-	var exists bool
+	repositoryUrl := r.RepositoryUrl
 
-	for _, existingRepo := range existingRepos {
-		waitGroup.Add(1)
-		semaphore <- 1
-		go func(existingRepo models.Repository) {
-			if existingRepo.RepositoryUrl == r.RepositoryUrl {
-				mutex.Lock()
-				exists = true
-				mutex.Unlock()
-			}
-			defer func() {
-				<-semaphore
-				waitGroup.Done()
-			}()
-		}(existingRepo)
-	}
-	defer func() {
-		<-semaphore
-		waitGroup.Done()
-	}()
+	var repository models.Repository
+	g.DatabaseClient.Table("repositories").Where("repository_url = ?", repositoryUrl).First(&repository)
 
-	return exists
+	return repository.Id > 0
 }
 
 func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
-	existingRepos := g.getAllRepositories()
-	var enriched bool
-	var enrichedMutex sync.Mutex
-	var waitGroup sync.WaitGroup
-	semaphore := make(chan int, g.MaxRoutines)
+	var queriedRepository models.Repository
+	repositoryUrl := r.RepositoryUrl
 
-	for _, existingRepo := range existingRepos {
-		waitGroup.Add(1)
-		semaphore <- 1
-		go func(existingRepo models.Repository) {
-			if existingRepo.RepositoryUrl == r.RepositoryUrl {
-				if existingRepo.OpenIssueCount != "" && existingRepo.ClosedIssueCount != "" && existingRepo.CommitCount != "" && existingRepo.RepositoryType != "" && existingRepo.PrimaryLanguage != "" && existingRepo.CreationDate != "" && existingRepo.StargazerCount != "" && existingRepo.LicenseInfo != "" && existingRepo.LatestRelease != "" {
-					enrichedMutex.Lock()
-					enriched = true
-					enrichedMutex.Unlock()
-				}
-			}
-			defer func() {
-				<-semaphore
-				waitGroup.Done()
-			}()
-		}(existingRepo)
-	}
-	waitGroup.Wait()
+	g.DatabaseClient.Table("repositories").Where("repository_url = ?", repositoryUrl).First(&queriedRepository)
 
-	for !(len(semaphore) == 0) {
-		continue
+	if queriedRepository.OpenIssueCount != "" || queriedRepository.ClosedIssueCount != "" || queriedRepository.CommitCount != "" || queriedRepository.RepositoryType != "" || queriedRepository.PrimaryLanguage != "" || queriedRepository.CreationDate != "" || queriedRepository.StargazerCount != "" || queriedRepository.LicenseInfo != "" || queriedRepository.LatestRelease != "" {
+		return true
 	}
 
-	return enriched
-}
-
-func (g *GoPlugin) getAllRepositories() []models.Repository {
-	var repositories []models.Repository
-	g.DatabaseClient.Find(&repositories)
-
-	return repositories
+	return false
 }
 
 // Calculates the lines of code using https://github.com/hhatto/gocloc
@@ -120,41 +71,6 @@ func (g *GoPlugin) pruneTemporaryFolder() {
 	utils.Command("chmod", "-R", "777", utils.GetProcessDirPath())
 	os.RemoveAll(utils.GetProcessDirPath())
 	os.MkdirAll(utils.GetProcessDirPath(), os.ModePerm)
-}
-
-// Parse repository name from url.
-// Creates a slice of repositories, which are duplicates in an original list.
-func (g *GoPlugin) findDuplicates(repositories []models.Repository) []models.Repository {
-	seenRepositories := make(map[string]bool)
-	duplicateEntries := []models.Repository{}
-	var wg sync.WaitGroup
-	semaphore := make(chan int, g.MaxRoutines)
-	var mu sync.Mutex
-
-	for _, repository := range repositories {
-		wg.Add(1)
-		semaphore <- 1
-		go func(repository models.Repository) {
-			mu.Lock()
-			if seenRepositories[repository.RepositoryName] {
-				duplicateEntries = append(duplicateEntries, repository)
-			} else {
-				seenRepositories[repository.RepositoryName] = true
-			}
-			mu.Unlock()
-			defer func() {
-				<-semaphore
-				wg.Done()
-			}()
-		}(repository)
-	}
-	wg.Wait()
-
-	for !(len(semaphore) == 0) {
-		continue
-	}
-
-	return duplicateEntries
 }
 
 // Check if a folder exists in the file system.
