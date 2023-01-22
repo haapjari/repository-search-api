@@ -41,7 +41,6 @@ GOPATH=$HOME/go
 GOPATH_PROD=/go
 PROCESS_DIR=/path/to/workdir/tmp
 PROCESS_DIR_PROD=/path/to/workdir/tmp
-MAX_GOROUTINES=64
 ```
 
 ### Generate Metadata

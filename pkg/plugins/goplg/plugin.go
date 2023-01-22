@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -52,7 +53,7 @@ func NewGoPlugin(DatabaseClient *gorm.DB) *GoPlugin {
 	g.LibraryCache = make(map[string]int)
 	g.Parser = NewParser()
 	g.GoMods = make(map[string]*GoMod)
-	g.MaxRoutines, err = strconv.Atoi(utils.GetMaxGoRoutines())
+	g.MaxRoutines = runtime.NumCPU()
 	g.DependencyMap = make(map[string][]string)
 	utils.CheckErr(err)
 
@@ -323,8 +324,9 @@ func (g *GoPlugin) processRepositories(unprocessedRepositories []models.Reposito
 // save the values to the database.
 func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repository) []models.Repository {
 	libraries := g.DependencyMap
-	var mu sync.Mutex
-	var wg sync.WaitGroup
+	var mutex sync.Mutex
+	var waitGroup sync.WaitGroup
+	semaphore := make(chan int, g.MaxRoutines)
 	utils.CopyFile("go.mod", "go.mod.bak")
 	utils.CopyFile("go.sum", "go.sum.bak")
 	os.Setenv("GOPATH", utils.GetProcessDirPath())
@@ -350,10 +352,11 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 			// If the producer starts to lag out with the routines, cap them to core count.
 			go func() {
 				for j, libraryUrl := range libraries[repositoryName] {
-					mu.Lock()
+					mutex.Lock()
 					_, ok := g.LibraryCache[libraryUrl]
-					mu.Unlock()
-					wg.Add(1)
+					mutex.Unlock()
+					waitGroup.Add(1)
+					semaphore <- 1
 					go func(j int, libraryUrl string) {
 						if !ok {
 							err := utils.Command("go", "get", "-d", "-v", downloadableFormat(libraryUrl))
@@ -362,34 +365,39 @@ func (g *GoPlugin) processLibraries(repositoriesWithoutLibrarySize []models.Repo
 							}
 							calculateJobs <- j
 						}
-						defer wg.Done()
+						defer func() {
+							<-semaphore
+							waitGroup.Done()
+						}()
 					}(j, libraryUrl)
 				}
-				wg.Wait()
+				waitGroup.Wait()
 				done <- true
 			}()
 
 			// Consumer
 			go func() {
 				for jobIndex := range calculateJobs {
-					wg.Add(1)
+					waitGroup.Add(1)
 					go func(jobIndex int) {
-						mu.Lock()
+						mutex.Lock()
 						libraryUrl := parseLibraryUrl(libraries[repositoryName][jobIndex])
-						mu.Unlock()
+						mutex.Unlock()
 						libraryCodeLines, err := g.calculateCodeLines(utils.GetProcessDirPath() + "/" + "pkg/mod" + "/" + libraryUrl)
 						if err != nil {
 							fmt.Println("error, while calculating library code lines:", err.Error())
 						}
-						mu.Lock()
+						mutex.Lock()
 						g.LibraryCache[libraries[repositoryName][jobIndex]] = libraryCodeLines
 						totalLibraryCodeLines += libraryCodeLines
-						mu.Unlock()
-						defer wg.Done()
+						mutex.Unlock()
+						defer func() {
+							waitGroup.Done()
+						}()
 					}(jobIndex)
 				}
 			}()
-			wg.Wait()
+			waitGroup.Wait()
 			<-done
 			close(calculateJobs)
 
