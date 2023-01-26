@@ -3,6 +3,7 @@ package goplg
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -13,6 +14,14 @@ import (
 	"github.com/pingcap/errors"
 )
 
+func (g *GoPlugin) getAllRepositories() []models.Repository {
+	var repositories []models.Repository
+
+	g.DatabaseClient.Find(&repositories)
+
+	return repositories
+}
+
 func trimFirstRune(s string) string {
 	_, i := utf8.DecodeRuneInString(s)
 	return s[i:]
@@ -22,26 +31,35 @@ func isLocalPath(path string) bool {
 	return strings.HasPrefix(path, "./")
 }
 
-func (g *GoPlugin) repositoryExists(r models.Repository) bool {
-	repositoryUrl := r.RepositoryUrl
+func (g *GoPlugin) repositoryExists(repository models.Repository, repositories []models.Repository) bool {
+	repositoryUrl := repository.RepositoryUrl
 
-	var repository models.Repository
-	g.DatabaseClient.Table("repositories").Where("repository_url = ?", repositoryUrl).First(&repository)
-
-	return repository.Id > 0
-}
-
-func (g *GoPlugin) hasBeenEnriched(r models.Repository) bool {
-	var queriedRepository models.Repository
-	repositoryUrl := r.RepositoryUrl
-
-	g.DatabaseClient.Table("repositories").Where("repository_url = ?", repositoryUrl).First(&queriedRepository)
-
-	if queriedRepository.OpenIssueCount != "" || queriedRepository.ClosedIssueCount != "" || queriedRepository.CommitCount != "" || queriedRepository.RepositoryType != "" || queriedRepository.PrimaryLanguage != "" || queriedRepository.CreationDate != "" || queriedRepository.StargazerCount != "" || queriedRepository.LicenseInfo != "" || queriedRepository.LatestRelease != "" {
-		return true
+	for _, r := range repositories {
+		if r.RepositoryUrl == repositoryUrl {
+			return true
+		}
 	}
 
 	return false
+}
+
+func (g *GoPlugin) hasBeenEnriched(repository models.Repository, repositories []models.Repository) bool {
+	var queriedRepository models.Repository
+	repositoryUrl := repository.RepositoryUrl
+
+	for _, r := range repositories {
+		if r.RepositoryUrl == repositoryUrl {
+			queriedRepository = r
+			break
+		}
+	}
+	v := reflect.ValueOf(queriedRepository)
+	for i := 0; i < v.NumField(); i++ {
+		if v.Field(i).String() == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // Calculates the lines of code using https://github.com/hhatto/gocloc
