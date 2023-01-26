@@ -75,6 +75,7 @@ func (g *GoPlugin) fetchRepositories(count int) []models.Repository {
 	log.Println("Fetching repositories...")
 
 	var newRepositories []models.Repository
+	repositoriesInDatabase := g.getAllRepositories()
 
 	queryString := `{
 		search(query: "lang:go + AND select:repo AND repohasfile:go.mod AND count:` + strconv.Itoa(count) + `", version:V2) { results {
@@ -114,34 +115,17 @@ func (g *GoPlugin) fetchRepositories(count int) []models.Repository {
 
 	var waitGroup sync.WaitGroup
 	semaphore := make(chan int, g.MaxRoutines)
-	var mu sync.Mutex
 
 	parser := NewParser()
 
 	for i := 0; i < sourceGraphResponseLength; i++ {
-		waitGroup.Add(1)
-		semaphore <- 1
-		go func(i int) {
-			_, projectName := parser.ParseRepository(repositories[i].Name)
-			repository := models.Repository{RepositoryName: projectName, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
-			if !g.repositoryExists(repository) {
-				log.Println("Database entry from: " + repository.RepositoryUrl)
-				g.DatabaseClient.Create(&repository)
-				mu.Lock()
-				newRepositories = append(newRepositories, repository)
-				mu.Unlock()
-			}
-			defer func() {
-				<-semaphore
-				waitGroup.Done()
-			}()
-		}(i)
-	}
-
-	waitGroup.Wait()
-
-	for !(len(semaphore) == 0) {
-		continue
+		_, projectName := parser.ParseRepository(repositories[i].Name)
+		repository := models.Repository{RepositoryName: projectName, RepositoryUrl: repositories[i].Name, OpenIssueCount: "", ClosedIssueCount: "", OriginalCodebaseSize: "", LibraryCodebaseSize: "", RepositoryType: "", PrimaryLanguage: ""}
+		if !g.repositoryExists(repository, repositoriesInDatabase) {
+			log.Println("Database entry from: " + repository.RepositoryUrl)
+			g.DatabaseClient.Create(&repository)
+			newRepositories = append(newRepositories, repository)
+		}
 	}
 
 	// Reads the repositories -tables values to memory, crafts a GitHub GraphQL requests of the
@@ -152,7 +136,7 @@ func (g *GoPlugin) fetchRepositories(count int) []models.Repository {
 		waitGroup.Add(1)
 		semaphore <- 1
 		go func(i int) {
-			if !g.hasBeenEnriched(newRepositories[i]) {
+			if !g.hasBeenEnriched(newRepositories[i], repositoriesInDatabase) {
 				repositoryOwner, repositoryName := g.Parser.ParseRepository(newRepositories[i].RepositoryUrl)
 				queryStr := fmt.Sprintf(`{
 					repository(owner: "%s", name: "%s") {
