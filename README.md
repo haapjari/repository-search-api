@@ -6,16 +6,15 @@ Hello! I am Jari Haapasaari ([mail](mailto:haapjari@gmail.com)), and I am buildi
 
 ## About
 
-This is `glsgen` (gls Generator) research tool which is a REST API, which collects data of open-source repositories and generates a `.csv` file from them. Tool uses `SourceGraph GraphQL API` and `GitHub GraphQL API`, and counts the sizes of repositories and their dependencies. Tools initial purpose is to create dataset for my thesis.
+This is `glass`, a research tool which is a REST API, which collects data of open-source repositories and generates a `.csv` file from them. Tool uses `SourceGraph GraphQL API` and `GitHub GraphQL API`, and counts the sizes of repositories and their dependencies. Tools initial purpose is to create dataset for my thesis.
 
 ---
 
 ## Plugins
 
-- `glsgen` is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`. Alpha Version of the Plugin is Completed in 15.1.2023.
+- `Glass` is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`. Alpha Version of the Plugin is Completed in 15.1.2023.
 
 - Go (Alpha Version Released)
-- Planning: node.js
 
 ---
 
@@ -47,30 +46,6 @@ PROCESS_DIR_PROD=/path/to/workdir/tmp
 
 - Endpoint `/api/gls/v1/repository/fetch/metadata` - requires following query parameters `type` and `count`.
     - Example: `/api/gls/v1/repository/fetch/metadata?type=go&count=1`
-
----
-
-## How-To: Contribute
-
-- I don't have a structured way to accept contributions to the project, but feel free to leave a `pull request`, if you feel like it. :)
-
----
-
-# Notes
-
-- Implementation might have issues, since I am implementing concurrency for the first time.
-
-## TODO
-
-- Read: https://betterprogramming.pub/hands-on-go-concurrency-the-producer-consumer-pattern-c42aab4e3bd2
-- Producer - Consumer
-
-## TODO (Out of the Thesis Scope)
-
-- Quality Measure -endpoint.
-- .env -> config.yaml
-- Commit -analysis.
-- GitLab Runner.
 
 ---
 
