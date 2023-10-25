@@ -1,6 +1,8 @@
 # Greetings
 
-Hello! I am Jari Haapasaari ([mail](mailto:haapjari@gmail.com)), and I am building a research tool for my thesis. This is a complete open-source project, which started from my interest to learn `go`. Feel free to `fork`, leave comment, mail me, or copy parts of the code to your own usage. This `README.md` -file contains notes for the project, tasks, and descriptive information of the logic behind the functionality.
+Hello! I am Jari Haapasaari ([mail](mailto:haapjari@gmail.com)), and this was a research tool for my thesis, and my first Go project! 
+
+This is a complete open-source project, which started from my interest to learn `go`. Feel free to `fork`, leave comment, mail me, or copy parts of the code to your own usage. This `README.md` -file contains notes for the project, tasks, and descriptive information of the logic behind the functionality.
 
 ---
 
@@ -51,10 +53,10 @@ PROCESS_DIR_PROD=/path/to/workdir/tmp
 
 ## Docker Notes
 
-### Run gls a a Docker Container
+### Run Glass a a Docker Container
 
 - Network:`docker network create --subnet=172.19.0.0/16 <network_name>`
-- Build: `docker build --tag gls:latest .`
+- Build: `docker build --tag <image_name>:latest .`
 - Run: `docker run -idt -p 8080:8080 --cpus=<cpu_count> -m <memory_amount> --name gls --net <network_name> gls:latest`
 
 You might need to configure `.env` - file values to fit your environment.

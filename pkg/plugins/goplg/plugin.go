@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/haapjari/glsgen/pkg/models"
-	"github.com/haapjari/glsgen/pkg/utils"
+	"github.com/haapjari/glass/pkg/models"
+	"github.com/haapjari/glass/pkg/utils"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )

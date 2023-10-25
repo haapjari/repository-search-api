@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/haapjari/glsgen/pkg/utils"
+	"github.com/haapjari/glass/pkg/utils"
 	"golang.org/x/mod/modfile"
 )
 

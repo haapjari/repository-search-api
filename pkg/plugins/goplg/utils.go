@@ -8,8 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/haapjari/glsgen/pkg/models"
-	"github.com/haapjari/glsgen/pkg/utils"
+	"github.com/haapjari/glass/pkg/models"
+	"github.com/haapjari/glass/pkg/utils"
 	"github.com/hhatto/gocloc"
 	"github.com/pingcap/errors"
 )
