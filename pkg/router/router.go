@@ -7,10 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter() {
+func SetupRouter() error {
 	r := gin.Default()
 
-    // TODO
+	// TODO
 	// db := database.SetupDatabase()
 
 	// r.Use(func(c *gin.Context) {
@@ -18,15 +18,12 @@ func SetupRouter() {
 	// 	c.Next()
 	// })
 
+	r.GET("/api/v1/repository/fetch", controllers.FetchRepositoryData)
 
-	r.GET("/api/v1/repository", controllers.GetRepositories)
-	r.POST("/api/v1/repository", controllers.CreateRepository)
-	r.GET("/api/v1/repository/:id", controllers.GetRepositoryById)
-	r.DELETE("/api/v1/repository/:id", controllers.DeleteRepositoryById)
-	r.PATCH("/api/v1/repository/:id", controllers.UpdateRepositoryById)
-	
-    // TODO 
-    r.GET("/api/v1/repository/fetch/metadata", repository.GetRepositoryMetadata)
+	err := r.Run()
+	if err != nil {
+		return err
+	}
 
-	r.Run()
+	return nil
 }

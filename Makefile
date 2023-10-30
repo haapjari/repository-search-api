@@ -1,5 +1,11 @@
 include make.properties
 
+compose-up: docker
+	docker-compose up -d --force-recreate
+
+compose-down:
+	docker-compose down
+
 run: compile
 	${OUTPUT_PATH}
 

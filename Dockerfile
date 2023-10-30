@@ -1,4 +1,6 @@
-# Builder
+#
+# Build Stage
+#
 
 FROM        golang:latest as build
 
@@ -12,11 +14,12 @@ WORKDIR     /workspace
 
 COPY        . . 
 
-RUN         apt-get update && apt-get upgrade -y  && \
-            go get ./...                          && \
+RUN         go get ./...                          && \
             go build -o glass ./cmd/main.go
 
-# Final
+#
+# Final Stage
+#
 
 FROM        scratch as final
  

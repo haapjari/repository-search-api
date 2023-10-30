@@ -9,13 +9,6 @@ import (
 
 // Single Point in Program to Fetch all the Environment Variables.
 
-func GetMaxGoRoutines() string {
-	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
-
-	return fmt.Sprint(viper.Get("MAX_GOROUTINES"))
-}
-
 func GetDatabaseUser() interface{} {
 	viper.SetConfigFile(".env")
 	viper.ReadInConfig()
@@ -82,14 +75,20 @@ func GetDatabaseHost() interface{} {
 
 func GetDatabasePort() interface{} {
 	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
+	err := viper.ReadInConfig()
+	if err != nil {
+		return nil
+	}
 
 	return viper.Get("POSTGRES_PORT")
 }
 
 func GetGithubToken() interface{} {
 	viper.SetConfigFile(".env")
-	viper.ReadInConfig()
+	err := viper.ReadInConfig()
+	if err != nil {
+		return nil
+	}
 
 	return viper.Get("GITHUB_TOKEN")
 }

@@ -2,8 +2,11 @@ package main
 
 import (
 	"github.com/haapjari/glass/pkg/router"
+	"log"
 )
 
 func main() {
-	router.SetupRouter()
+	if err := router.SetupRouter(); err != nil {
+		log.Fatal(err.Error())
+	}
 }

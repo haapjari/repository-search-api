@@ -7,13 +7,15 @@ services:
     env_file:
       - ".env"
     volumes:
-      - mydb:/var/lib/postgresql/data
+      - glass-db-volume:/var/lib/postgresql/data
     networks:
       research-network:
         ipv4_address: 172.19.0.15
 
   glass:
-    build: .
+    image: glass:latest
+    env_file:
+      - ".env"
     ports:
       - "8080:8080"
     networks:
@@ -29,4 +31,4 @@ networks:
       - subnet: 172.19.0.0/16
 
 volumes:
-  mydb:
+  glass-db-volume:

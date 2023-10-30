@@ -2,49 +2,20 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/haapjari/glass/pkg/handlers"
 )
 
 type RepositoryController struct {
-	Handler        *Handler
+	Handler        *handlers.Handler
 	Context        *gin.Context
 	GitHubApiToken string
 	GitHubName     string
 }
 
-func GetRepositories(c *gin.Context) {
-	h := NewHandler(c)
-	h.HandleGetRepositories()
-}
-
-func GetRepositoryById(c *gin.Context) {
-	h := NewHandler(c)
-	h.HandleGetRepositoryById()
-}
-
-func CreateRepository(c *gin.Context) {
-	h := NewHandler(c)
-	h.HandleCreateRepository()
-}
-
-func DeleteRepositoryById(c *gin.Context) {
-	h := NewHandler(c)
-	h.HandleDeleteRepositoryById()
-}
-
-func UpdateRepositoryById(c *gin.Context) {
-	h := NewHandler(c)
-	h.HandleUpdateRepositoryById()
-}
-
-func GetRepositoryMetadata(c *gin.Context) {
-	h := NewHandler(c)
+func FetchRepositoryData(c *gin.Context) {
+	h := handlers.NewHandler(c)
 
 	if c.Query("type") == "go" {
 		h.HandleGetRepositoryMetadata()
 	}
-}
-
-func GenerateCsv(c *gin.Context) {
-	h := NewHandler(c)
-	h.HandleGenerateCsv()
 }
