@@ -1,29 +1,36 @@
-include make.properties
+SPEC_FILE 				:= docs/openapi.yaml
+GEN_DIR 				:= ./api
+OUTPUT_PATH             := bin/api
+MAIN_MODULE             := cmd/main.go
+IMAGE_VERSION           := latest
 
-compose-up: docker
-	docker-compose up -d --force-recreate
+OAPI_GENERATOR_VERSION 	?= latest
 
-compose-down:
-	docker-compose down
+##  
+## Commands
+##
 
+.PHONY: run
 run: compile
-	${OUTPUT_PATH}
+	./${OUTPUT_PATH}
 
-workspace:
-	go work use .
 
-dev:
-	air
-
+.PHONY: test
 test:
-	go clean
-	go test ./...
+	go test -v -count=1 ./...
 
+
+.PHONY: compile
 compile:
 	go build -o ${OUTPUT_PATH} ${MAIN_MODULE}
 
-docker:
-	docker build --tag ${DOCKER_IMAGE}:latest .
 
-docker-run:
-	docker run -idt -p 8080:8080 --name ${DOCKER_IMAGE} ${DOCKER_IMAGE}:latest
+.PHONY: tools
+tools:
+	go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_GENERATOR_VERSION)
+
+
+.PHONY: oapi-codegen
+oapi-codegen: tools
+	@mkdir -p $(GEN_DIR)
+	oapi-codegen --package=api -generate="gin" -o $(GEN_DIR)/server.gen.go $(SPEC_FILE)

@@ -8,32 +8,30 @@ This is a complete open-source project, which started from my interest to learn 
 
 ## About
 
-I am calling this project `glass`, because I's like magnifying glass to GitHub repositories. Tool is an abstraction for `GitHub REST API`, which collects data of open-source repositories and writes that data to database.
+This repository contains replication package for the analysis, which was completed in my thesis, during Autumn 2023. 
 
----
+Work consists of three different components and a docker-compose file that can be used to orchestrate the setup.
 
-## Plugins
+Project is called `glass`, because I's like magnifying glass to GitHub repositories. Tool is an abstraction for `GitHub REST API`, which collects data of open-source repositories and writes that data to database.
 
-- `Glass` is designed to be modular, `pkg/plugins` folder represents what kind of repositories can be analyzed. I am working (at the moment of writing, 27.10.2022), on `goplg`, which aims to offer functionality to analyze the quality of repositories, which primary language is `go`. Alpha Version of the Plugin is Completed in 15.1.2023.
+### Components
 
-- Go (Alpha Version Released)
+### UI
 
----
+- Visualizes the results.
+- Offers orchestration methods and ability to visualize the results.
 
-# How-To: Run
+### API
 
-- See `Makefile`
-- Requires: `go`, `postgresql`
-- Example: `.env` -file.
+- REST API, that fetches data from GitHub.
+- API also calculates the missing fields from the data.
 
-```
-POSTGRES_USER=
-POSTGRES_PASSWORD=
-POSTGRES_DB=
-POSTGRES_HOST=
-POSTGRES_PORT=
-GITHUB_USERNAME=
-GITHUB_TOKEN=
-```
+### Visual
+
+- Component reads data from the database, and  
+
+### Database
+
+- PostgreSQL database.
 
 ---

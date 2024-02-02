@@ -1,13 +1,15 @@
 package main
 
 import (
-	"log/slog"
-
-	"github.com/haapjari/glass/pkg/router"
+	"github.com/gin-gonic/gin"
+	"github.com/haapjari/glass-api/api"
+	"github.com/haapjari/glass-api/internal/pkg/server"
 )
 
 func main() {
-	if err := router.SetupRouter(); err != nil {
-		slog.Error(err.Error())
-	}
+	router := gin.Default()
+
+	api.RegisterHandlers(router, server.NewServer())
+
+	router.Run(":8080")
 }
