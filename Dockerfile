@@ -1,6 +1,6 @@
-#
-# Build Stage
-#
+##
+## Build Stage
+##
 
 FROM        golang:latest as build
 
@@ -17,9 +17,9 @@ COPY        . .
 RUN         go get ./...                          && \
             go build -o glass ./cmd/main.go
 
-#
-# Final Stage
-#
+##
+## Final Stage
+##
 
 FROM        scratch as final
  

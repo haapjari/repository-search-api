@@ -33,4 +33,4 @@ tools:
 .PHONY: oapi-codegen
 oapi-codegen: tools
 	@mkdir -p $(GEN_DIR)
-	oapi-codegen --package=api -generate="gin" -o $(GEN_DIR)/server.gen.go $(SPEC_FILE)
+	oapi-codegen --package=api -generate="types,client,spec,gin" -o $(GEN_DIR)/server.gen.go $(SPEC_FILE)

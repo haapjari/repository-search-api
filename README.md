@@ -10,6 +10,30 @@ This is a complete open-source project, which started from my interest to learn 
 
 This is `glass-api`, part of my research tool, used in my thesis components. Note: Current Version is a rewrite of the tool.
 
+OpenAPI documentation is available at `docs/openapi.yaml`
+
+---
+
+## How-To
+
+### Prerequisite
+
+- Requires environment variables to be in place. Example `.env` file:
+
+```
+PORT=8080
+```
+
+### Run
+
+- See `Prerequisite`.
+- Docker: TODO
+- Locally: `make run`
+
+### Build
+
+### Dev
+
 ---
 
 ### API Design
@@ -17,3 +41,5 @@ This is `glass-api`, part of my research tool, used in my thesis components. Not
 ### TODO
 
 - Implement Token Forwarding
+
+---

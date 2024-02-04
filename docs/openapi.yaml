@@ -31,7 +31,7 @@ paths:
                 schema:
                   type: object
                   properties:
-                    total_pages:
+                    pages:
                       type: integer
                       description: The total number of pages available based on the search criteria.
           '400':

@@ -1,21 +1,27 @@
 package main
 
 import (
-	"log/slog"
-
 	"github.com/gin-gonic/gin"
 	"github.com/haapjari/glass-api/api"
-	"github.com/haapjari/glass-api/internal/pkg/server"
+	"github.com/haapjari/glass-api/internal/pkg/cfg"
+	"github.com/haapjari/glass-api/internal/pkg/logger"
+	"github.com/haapjari/glass-api/internal/pkg/srv"
 )
 
 func main() {
-	router := gin.Default()
+	r := gin.Default()
+	c := cfg.NewConfig()
+	logger := logger.NewLogger(logger.DebugLevel)
 
-	api.RegisterHandlers(router, server.NewServer())
+	api.RegisterHandlers(r, srv.NewServer(logger))
 
-	err := router.Run(":8080")
+	logger.Debugf("GIN_MODE=%v", c.GinMode)
+
+	// TODO: GIN MODE
+
+	err := r.Run("127.0.0.1" + ":" + c.Port)
 	if err != nil {
-		slog.Error("unable to run the api: %v", err)
+		logger.Errorf("unable to run the server on port: %v, error: %v", c.Port, err.Error())
 		return
 	}
 }
