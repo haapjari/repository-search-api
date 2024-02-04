@@ -5,17 +5,259 @@ info:
   version: 1.0.0
 
 paths:
+  /api/v1/repositories/search/pages:
+      get:
+        summary: Returns page count for the results of GitHub Search API for Repositories.
+        description: Abstraction for GitHub Search API, returns page count for provided parameters. 
+        parameters:
+          - in: query
+            name: language
+            schema:
+              type: string
+            required: true
+            description: The primary programming language of the repositories to search for.
+          - in: query
+            name: stars
+            schema:
+              type: string
+            required: true
+            description: Minimum number of stars a repository must have. e.g., ">100" for more than 100 stars.
+            example: ">100"
+        responses:
+          '200':
+            description: Successful Response
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    total_pages:
+                      type: integer
+                      description: The total number of pages available based on the search criteria.
+          '400':
+            description: Bad Request 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
 
-  /api/v1/hello:
+          '403':
+            description: Forbidden 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
+
+          '500':
+            description: Internal Server Error 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
+
+          '503':
+            description: Service Unavailable 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
+
+        security:
+          - ApiKeyAuth: [] 
+
+
+  /api/v1/repositories/search/{pageNumber}:
     get:
-      summary: Returns a hello message
+      summary: Abstraction for GitHub Search API.
+      description: Abstraction for GitHub Search API. Optionally, GitHub Personal Access Token can be passed inside Authorization Header to ensure, that GitHub Rate Limits does not apply.
+      parameters:
+        - in: path
+          name: pageNumber
+          schema:
+            type: integer
+          required: true
+          description: The page number of the search results to fetch.
+          example: 1
+        - in: query
+          name: language
+          schema:
+            type: string
+          required: true
+          description: The primary programming language of the repositories to search for.
+          example: Go
+        - in: query
+          name: stars
+          schema:
+            type: string
+          required: true
+          description: The number of stars a repository must have, e.g., ">100" for more than 100 stars.
+          example: ">100"
+        - in: query
+          name: order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          required: false
+          description: The order of the results, either ascending (asc) or descending (desc). Defaults to descending.
+          example: desc
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+          required: false
+          description: The number of items to return per page, up to a maximum of 100.
+          example: 10
       responses:
         '200':
-          description: A successful response
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  message:
+                  total_count:
+                    type: integer
+                    description: The total number of repositories found.
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Repository'
+                required:
+                  - total_count
+                  - items
+        '400':
+          description: Bad Request 
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
                     type: string
+                    description: Error Message.
+
+        '403':
+          description: Forbidden 
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error Message.
+
+        '500':
+          description: Internal Server Error 
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error Message.
+
+        '503':
+          description: Service Unavailable 
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error Message.
+
+      security:
+        - ApiKeyAuth: [] 
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Optional GitHub Personal Access Token to authenticate requests for increased rate limits.
+  schemas:
+    Repository:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        full_name:
+          type: string
+        html_url:
+          type: string
+        description:
+          type: string
+        creation_date:
+          type: string
+          format: date-time
+        stargazers_count:
+          type: integer
+        language:
+          type: string
+        open_issues_count:
+          type: integer
+        closed_issues_count:
+          type: integer  # This might require custom logic or additional API calls
+        open_pulls_count:
+          type: integer  # Custom implementation required
+        closed_pulls_count:
+          type: integer  # Custom implementation required
+        forks_count:
+          type: integer
+        subscribers_count:
+          type: integer
+        watchers_count:
+          type: integer
+        commits_count:
+          type: integer  # Custom implementation required
+        events_count:
+          type: integer  # Custom implementation required
+        latest_release:
+          type: object  # You might need to detail this object more based on your needs
+          properties:
+            tag_name:
+              type: string
+            published_at:
+              type: string
+              format: date-time
+        total_releases_count:
+          type: integer  # Custom implementation required
+        contributors_count:
+          type: integer  # Custom implementation required
+        library_loc:
+          type: integer  # Custom implementation required
+        self_written_loc:
+          type: integer  # Custom implementation required
+      required:
+        - id
+        - name
+        - full_name
+        - html_url
+        - stargazers_count
+        - language
+

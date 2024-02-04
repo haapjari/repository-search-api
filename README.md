@@ -8,30 +8,12 @@ This is a complete open-source project, which started from my interest to learn 
 
 ## About
 
-This repository contains replication package for the analysis, which was completed in my thesis, during Autumn 2023. 
-
-Work consists of three different components and a docker-compose file that can be used to orchestrate the setup.
-
-Project is called `glass`, because I's like magnifying glass to GitHub repositories. Tool is an abstraction for `GitHub REST API`, which collects data of open-source repositories and writes that data to database.
-
-### Components
-
-### UI
-
-- Visualizes the results.
-- Offers orchestration methods and ability to visualize the results.
-
-### API
-
-- REST API, that fetches data from GitHub.
-- API also calculates the missing fields from the data.
-
-### Visual
-
-- Component reads data from the database, and  
-
-### Database
-
-- PostgreSQL database.
+This is `glass-api`, part of my research tool, used in my thesis components. Note: Current Version is a rewrite of the tool.
 
 ---
+
+### API Design
+
+### TODO
+
+- Implement Token Forwarding
