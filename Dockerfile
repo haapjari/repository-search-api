@@ -1,22 +1,30 @@
-FROM        golang:bullseye 
+##
+## Build Stage
+##
+
+FROM        golang:latest as build
 
 ENV         GIN_MODE=release
-ENV         PORT=8080
 ENV         GOOS=linux
 ENV         GOARCH=amd64
+ENV         GO111MODULE=on
 ENV         CGO_ENABLED=0
 
-WORKDIR     /go/src/
+WORKDIR     /workspace
 
-COPY        go.sum .
-COPY        go.sum . 
 COPY        . . 
 
-RUN         apt-get update && apt-get upgrade -y
-RUN         apt-get install nano 
-RUN         go get ./...
-RUN         go build -o ./bin/glsgen ./cmd/main.go
+RUN         go get ./...                          && \
+            go build -o glass ./cmd/main.go
 
-EXPOSE      $PORT
+##
+## Final Stage
+##
 
-ENTRYPOINT ["./bin/glsgen"]
+FROM        scratch as final
+ 
+COPY        --from=build /workspace/glass ./
+
+EXPOSE      8080
+
+ENTRYPOINT ["/glass"]

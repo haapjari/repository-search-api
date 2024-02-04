@@ -1,45 +1,36 @@
-include make.properties
+SPEC_FILE 				:= docs/openapi.yaml
+GEN_DIR 				:= ./api
+OUTPUT_PATH             := bin/api
+MAIN_MODULE             := cmd/main.go
+IMAGE_VERSION           := latest
 
-run:
-	make compile
-	make run-bin
+OAPI_GENERATOR_VERSION 	?= latest
 
-get-all:
-	./requests/repository-get-all.sh
+##  
+## Commands
+##
 
-fetch-metadata:
-	./requests/repository-fetch-metadata.sh
+.PHONY: run
+run: compile
+	./${OUTPUT_PATH}
 
-workspace:
-	go work use .
 
-air:
-	air
-
+.PHONY: test
 test:
-	go clean
-	go test ./...
+	go test -v -count=1 ./...
 
+
+.PHONY: compile
 compile:
 	go build -o ${OUTPUT_PATH} ${MAIN_MODULE}
 
-run-bin:
-	${OUTPUT_PATH}
 
-docker-build:
-	docker build --tag ${DOCKER_IMAGE}:latest .
+.PHONY: tools
+tools:
+	go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_GENERATOR_VERSION)
 
-docker-run:
-	docker run -idt -p 8080:8080 --name ${DOCKER_IMAGE} --net ${DOCKER_NETWORK} --ip ${DOCKER_STATIC_IP} ${DOCKER_IMAGE}:latest
 
-postgres-container-ip:
-	docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' glsgen_postgres_1
-
-docker-compose:
-	docker-compose up -d
-
-database-start:
-	docker start postgres
-
-database-stop:
-	docker stop postgres
+.PHONY: oapi-codegen
+oapi-codegen: tools
+	@mkdir -p $(GEN_DIR)
+	oapi-codegen --package=api -generate="types,client,spec,gin" -o $(GEN_DIR)/server.gen.go $(SPEC_FILE)

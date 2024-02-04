@@ -2,79 +2,33 @@ version: '3'
 
 services:
 
-  node-exporter:
-    image: prom/node-exporter
-    networks:
-      - glsnet
-    ports:
-      - "9100:9100"
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-
-  grafana:
-    image: grafana/grafana
-    networks:
-      - glsnet
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=password
-
-  prometheus:
-    image: prom/prometheus
-    networks:
-      - glsnet
-    ports:
-      - "9090:9090"
-    volumes:
-      - prometheus:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    links:
-      - node-exporter
-
-  postgres:
+  glass-db:
     image: postgres
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+    env_file:
+      - ".env"
     volumes:
-      - mydb:/var/lib/postgresql/data
+      - glass-db-volume:/var/lib/postgresql/data
     networks:
-      glsnet:
-        ipv4_address: 172.19.0.2
+      research-network:
+        ipv4_address: 172.19.0.15
 
-  glsgen:
-#    build: .
-    image: glsgen:latest
-    environment:
-      - GIN_MODE=release
-      - PORT=8080
-      - GOOS=linux
-      - GOARCH=amd64
-      - CGO_ENABLED=0
+  glass:
+    image: glass:latest
+    env_file:
+      - ".env"
     ports:
       - "8080:8080"
-    command: ["./bin/glsgen"]
     networks:
-      glsnet:
-        ipv4_address: 172.19.0.1
+      research-network:
+        ipv4_address: 172.19.0.10
 
 
 networks:
-  glsnet:
+  research-network:
     driver: bridge
     ipam:
       config:
       - subnet: 172.19.0.0/16
 
 volumes:
-  prometheus:
-  mydb:
+  glass-db-volume:
