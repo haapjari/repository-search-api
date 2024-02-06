@@ -14,8 +14,8 @@ WORKDIR     /workspace
 
 COPY        . . 
 
-RUN         go get ./...                          && \
-            go build -o glass ./cmd/main.go
+RUN         go get ./... && \
+            go build -o bin ./cmd/main.go
 
 ##
 ## Final Stage
@@ -23,8 +23,6 @@ RUN         go get ./...                          && \
 
 FROM        scratch as final
  
-COPY        --from=build /workspace/glass ./
+COPY        --from=build /workspace/bin ./
 
-EXPOSE      8080
-
-ENTRYPOINT ["/glass"]
+ENTRYPOINT ["/bin"]

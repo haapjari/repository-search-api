@@ -40,7 +40,7 @@ func NewLogger(level LogLevel) Logger {
 		handlerOptions.Level = slog.LevelInfo // Default to Info level if unspecified.
 	}
 
-	handler = slog.NewJSONHandler(os.Stdout, &handlerOptions)
+	handler = slog.NewTextHandler(os.Stdout, &handlerOptions)
 	logger := slog.New(handler)
 
 	return &slogLogger{logger: logger}

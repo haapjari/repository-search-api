@@ -9,6 +9,7 @@
 .idea
 tmp
 bin
+sct
 .vscode
 requests
 .air.toml
