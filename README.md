@@ -32,14 +32,14 @@ PORT=8080
 
 ### Build
 
+- TBD
+
 ### Dev
 
----
-
-### API Design
-
-### TODO
-
-- Implement Token Forwarding
+- TBD
 
 ---
+
+### Notes
+
+- If I don't want to alter the plan, I need to use something else than GitHub Search API.
