@@ -5,10 +5,10 @@ info:
   version: 1.0.0
 
 paths:
-  /api/v1/repositories/search/pages:
+  /api/v1/repositories/search/firstCreationDate:
       get:
-        summary: Returns page count for the results of GitHub Search API for Repositories.
-        description: Abstraction for GitHub Search API, returns page count for provided parameters. 
+        summary: Returns first creation date from the set of repositories.
+        description: Retrieves the creation dates of the earliest repository within a collection that meet the specified search criteria. This endpoint accepts query parameters to define the search conditions, returning the creation dates of the first and last repositories that match these parameters.
         parameters:
           - in: query
             name: language
@@ -31,9 +31,86 @@ paths:
                 schema:
                   type: object
                   properties:
-                    pages:
-                      type: integer
-                      description: The total number of pages available based on the search criteria.
+                    firstCreationDate:
+                      type: string
+                      description: Earliest creation date of from set of the repositories returned from the GitHub Search API.
+          '400':
+            description: Bad Request 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
+
+          '403':
+            description: Forbidden 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
+
+          '500':
+            description: Internal Server Error 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
+
+          '503':
+            description: Service Unavailable 
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+                      description: Error Message.
+
+        security:
+          - ApiKeyAuth: [] 
+
+  
+  /api/v1/repositories/search/lastCreationDate:
+      get:
+        summary: Returns first creation date from the set of repositories.
+        description: Retrieves the creation dates of the earliest repository within a collection that meet the specified search criteria. This endpoint accepts query parameters to define the search conditions, returning the creation dates of the first and last repositories that match these parameters.
+        parameters:
+          - in: query
+            name: language
+            schema:
+              type: string
+            required: true
+            description: The primary programming language of the repositories to search for.
+          - in: query
+            name: stars
+            schema:
+              type: string
+            required: true
+            description: Minimum number of stars a repository must have. e.g., ">100" for more than 100 stars.
+            example: ">100"
+        responses:
+          '200':
+            description: Successful Response
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    lastCreationDate:
+                      type: string
+                      description: Last creation date of from set of the repositories returned from the GitHub Search API.
           '400':
             description: Bad Request 
             content:
@@ -82,18 +159,25 @@ paths:
           - ApiKeyAuth: [] 
 
 
-  /api/v1/repositories/search/{pageNumber}:
+  /api/v1/repositories/search:
     get:
-      summary: Abstraction for GitHub Search API.
-      description: Abstraction for GitHub Search API. Optionally, GitHub Personal Access Token can be passed inside Authorization Header to ensure, that GitHub Rate Limits does not apply.
+      summary: Abstraction for GitHub Search API, accepts Search API Queries with a Date Range.
+      description: Abstraction for GitHub Search API, accepts Search API Queries with a Date Range. Optionally, GitHub Personal Access Token can be passed inside Authorization Header to ensure, that GitHub Rate Limits does not apply. Returns first 1000 repositories that match the query.
       parameters:
-        - in: path
-          name: pageNumber
+        - in: query
+          name: firstCreationDate
           schema:
-            type: integer
+            type: string
           required: true
-          description: The page number of the search results to fetch.
-          example: 1
+          description: The first creation date of the range, in YYYY-MM-DD format.
+          example: "2013-05-01"
+        - in: query
+          name: lastCreationDate
+          schema:
+            type: string
+          required: true
+          description: The last creation date of the range, in YYYY-MM-DD format.
+          example: "2013-05-01"
         - in: query
           name: language
           schema:

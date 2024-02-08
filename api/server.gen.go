@@ -26,10 +26,10 @@ const (
 	ApiKeyAuthScopes = "ApiKeyAuth.Scopes"
 )
 
-// Defines values for GetApiV1RepositoriesSearchPageNumberParamsOrder.
+// Defines values for GetApiV1RepositoriesSearchParamsOrder.
 const (
-	Asc  GetApiV1RepositoriesSearchPageNumberParamsOrder = "asc"
-	Desc GetApiV1RepositoriesSearchPageNumberParamsOrder = "desc"
+	Asc  GetApiV1RepositoriesSearchParamsOrder = "asc"
+	Desc GetApiV1RepositoriesSearchParamsOrder = "desc"
 )
 
 // Repository defines model for Repository.
@@ -61,17 +61,14 @@ type Repository struct {
 	WatchersCount      *int   `json:"watchers_count,omitempty"`
 }
 
-// GetApiV1RepositoriesSearchPagesParams defines parameters for GetApiV1RepositoriesSearchPages.
-type GetApiV1RepositoriesSearchPagesParams struct {
-	// Language The primary programming language of the repositories to search for.
-	Language string `form:"language" json:"language"`
+// GetApiV1RepositoriesSearchParams defines parameters for GetApiV1RepositoriesSearch.
+type GetApiV1RepositoriesSearchParams struct {
+	// FirstCreationDate The first creation date of the range, in YYYY-MM-DD format.
+	FirstCreationDate string `form:"firstCreationDate" json:"firstCreationDate"`
 
-	// Stars Minimum number of stars a repository must have. e.g., ">100" for more than 100 stars.
-	Stars string `form:"stars" json:"stars"`
-}
+	// LastCreationDate The last creation date of the range, in YYYY-MM-DD format.
+	LastCreationDate string `form:"lastCreationDate" json:"lastCreationDate"`
 
-// GetApiV1RepositoriesSearchPageNumberParams defines parameters for GetApiV1RepositoriesSearchPageNumber.
-type GetApiV1RepositoriesSearchPageNumberParams struct {
 	// Language The primary programming language of the repositories to search for.
 	Language string `form:"language" json:"language"`
 
@@ -79,14 +76,29 @@ type GetApiV1RepositoriesSearchPageNumberParams struct {
 	Stars string `form:"stars" json:"stars"`
 
 	// Order The order of the results, either ascending (asc) or descending (desc). Defaults to descending.
-	Order *GetApiV1RepositoriesSearchPageNumberParamsOrder `form:"order,omitempty" json:"order,omitempty"`
-
-	// PerPage The number of items to return per page, up to a maximum of 100.
-	PerPage *int `form:"perPage,omitempty" json:"perPage,omitempty"`
+	Order *GetApiV1RepositoriesSearchParamsOrder `form:"order,omitempty" json:"order,omitempty"`
 }
 
-// GetApiV1RepositoriesSearchPageNumberParamsOrder defines parameters for GetApiV1RepositoriesSearchPageNumber.
-type GetApiV1RepositoriesSearchPageNumberParamsOrder string
+// GetApiV1RepositoriesSearchParamsOrder defines parameters for GetApiV1RepositoriesSearch.
+type GetApiV1RepositoriesSearchParamsOrder string
+
+// GetApiV1RepositoriesSearchFirstCreationDateParams defines parameters for GetApiV1RepositoriesSearchFirstCreationDate.
+type GetApiV1RepositoriesSearchFirstCreationDateParams struct {
+	// Language The primary programming language of the repositories to search for.
+	Language string `form:"language" json:"language"`
+
+	// Stars Minimum number of stars a repository must have. e.g., ">100" for more than 100 stars.
+	Stars string `form:"stars" json:"stars"`
+}
+
+// GetApiV1RepositoriesSearchLastCreationDateParams defines parameters for GetApiV1RepositoriesSearchLastCreationDate.
+type GetApiV1RepositoriesSearchLastCreationDateParams struct {
+	// Language The primary programming language of the repositories to search for.
+	Language string `form:"language" json:"language"`
+
+	// Stars Minimum number of stars a repository must have. e.g., ">100" for more than 100 stars.
+	Stars string `form:"stars" json:"stars"`
+}
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -161,15 +173,18 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// GetApiV1RepositoriesSearchPages request
-	GetApiV1RepositoriesSearchPages(ctx context.Context, params *GetApiV1RepositoriesSearchPagesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetApiV1RepositoriesSearch request
+	GetApiV1RepositoriesSearch(ctx context.Context, params *GetApiV1RepositoriesSearchParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiV1RepositoriesSearchPageNumber request
-	GetApiV1RepositoriesSearchPageNumber(ctx context.Context, pageNumber int, params *GetApiV1RepositoriesSearchPageNumberParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetApiV1RepositoriesSearchFirstCreationDate request
+	GetApiV1RepositoriesSearchFirstCreationDate(ctx context.Context, params *GetApiV1RepositoriesSearchFirstCreationDateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetApiV1RepositoriesSearchLastCreationDate request
+	GetApiV1RepositoriesSearchLastCreationDate(ctx context.Context, params *GetApiV1RepositoriesSearchLastCreationDateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) GetApiV1RepositoriesSearchPages(ctx context.Context, params *GetApiV1RepositoriesSearchPagesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1RepositoriesSearchPagesRequest(c.Server, params)
+func (c *Client) GetApiV1RepositoriesSearch(ctx context.Context, params *GetApiV1RepositoriesSearchParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1RepositoriesSearchRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -180,8 +195,8 @@ func (c *Client) GetApiV1RepositoriesSearchPages(ctx context.Context, params *Ge
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiV1RepositoriesSearchPageNumber(ctx context.Context, pageNumber int, params *GetApiV1RepositoriesSearchPageNumberParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1RepositoriesSearchPageNumberRequest(c.Server, pageNumber, params)
+func (c *Client) GetApiV1RepositoriesSearchFirstCreationDate(ctx context.Context, params *GetApiV1RepositoriesSearchFirstCreationDateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1RepositoriesSearchFirstCreationDateRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +207,20 @@ func (c *Client) GetApiV1RepositoriesSearchPageNumber(ctx context.Context, pageN
 	return c.Client.Do(req)
 }
 
-// NewGetApiV1RepositoriesSearchPagesRequest generates requests for GetApiV1RepositoriesSearchPages
-func NewGetApiV1RepositoriesSearchPagesRequest(server string, params *GetApiV1RepositoriesSearchPagesParams) (*http.Request, error) {
+func (c *Client) GetApiV1RepositoriesSearchLastCreationDate(ctx context.Context, params *GetApiV1RepositoriesSearchLastCreationDateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1RepositoriesSearchLastCreationDateRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// NewGetApiV1RepositoriesSearchRequest generates requests for GetApiV1RepositoriesSearch
+func NewGetApiV1RepositoriesSearchRequest(server string, params *GetApiV1RepositoriesSearchParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -201,7 +228,104 @@ func NewGetApiV1RepositoriesSearchPagesRequest(server string, params *GetApiV1Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/search/pages")
+	operationPath := fmt.Sprintf("/api/v1/repositories/search")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "firstCreationDate", runtime.ParamLocationQuery, params.FirstCreationDate); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "lastCreationDate", runtime.ParamLocationQuery, params.LastCreationDate); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "language", runtime.ParamLocationQuery, params.Language); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "stars", runtime.ParamLocationQuery, params.Stars); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Order != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "order", runtime.ParamLocationQuery, *params.Order); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetApiV1RepositoriesSearchFirstCreationDateRequest generates requests for GetApiV1RepositoriesSearchFirstCreationDate
+func NewGetApiV1RepositoriesSearchFirstCreationDateRequest(server string, params *GetApiV1RepositoriesSearchFirstCreationDateParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/repositories/search/firstCreationDate")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -249,23 +373,16 @@ func NewGetApiV1RepositoriesSearchPagesRequest(server string, params *GetApiV1Re
 	return req, nil
 }
 
-// NewGetApiV1RepositoriesSearchPageNumberRequest generates requests for GetApiV1RepositoriesSearchPageNumber
-func NewGetApiV1RepositoriesSearchPageNumberRequest(server string, pageNumber int, params *GetApiV1RepositoriesSearchPageNumberParams) (*http.Request, error) {
+// NewGetApiV1RepositoriesSearchLastCreationDateRequest generates requests for GetApiV1RepositoriesSearchLastCreationDate
+func NewGetApiV1RepositoriesSearchLastCreationDateRequest(server string, params *GetApiV1RepositoriesSearchLastCreationDateParams) (*http.Request, error) {
 	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "pageNumber", runtime.ParamLocationPath, pageNumber)
-	if err != nil {
-		return nil, err
-	}
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/search/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/repositories/search/lastCreationDate")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -300,38 +417,6 @@ func NewGetApiV1RepositoriesSearchPageNumberRequest(server string, pageNumber in
 					queryValues.Add(k, v2)
 				}
 			}
-		}
-
-		if params.Order != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "order", runtime.ParamLocationQuery, *params.Order); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.PerPage != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "perPage", runtime.ParamLocationQuery, *params.PerPage); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -388,55 +473,17 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetApiV1RepositoriesSearchPagesWithResponse request
-	GetApiV1RepositoriesSearchPagesWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchPagesParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchPagesResponse, error)
+	// GetApiV1RepositoriesSearchWithResponse request
+	GetApiV1RepositoriesSearchWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchResponse, error)
 
-	// GetApiV1RepositoriesSearchPageNumberWithResponse request
-	GetApiV1RepositoriesSearchPageNumberWithResponse(ctx context.Context, pageNumber int, params *GetApiV1RepositoriesSearchPageNumberParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchPageNumberResponse, error)
+	// GetApiV1RepositoriesSearchFirstCreationDateWithResponse request
+	GetApiV1RepositoriesSearchFirstCreationDateWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchFirstCreationDateParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchFirstCreationDateResponse, error)
+
+	// GetApiV1RepositoriesSearchLastCreationDateWithResponse request
+	GetApiV1RepositoriesSearchLastCreationDateWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchLastCreationDateParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchLastCreationDateResponse, error)
 }
 
-type GetApiV1RepositoriesSearchPagesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		// Pages The total number of pages available based on the search criteria.
-		Pages *int `json:"pages,omitempty"`
-	}
-	JSON400 *struct {
-		// Error Error Message.
-		Error *string `json:"error,omitempty"`
-	}
-	JSON403 *struct {
-		// Error Error Message.
-		Error *string `json:"error,omitempty"`
-	}
-	JSON500 *struct {
-		// Error Error Message.
-		Error *string `json:"error,omitempty"`
-	}
-	JSON503 *struct {
-		// Error Error Message.
-		Error *string `json:"error,omitempty"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiV1RepositoriesSearchPagesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiV1RepositoriesSearchPagesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetApiV1RepositoriesSearchPageNumberResponse struct {
+type GetApiV1RepositoriesSearchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -464,7 +511,7 @@ type GetApiV1RepositoriesSearchPageNumberResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiV1RepositoriesSearchPageNumberResponse) Status() string {
+func (r GetApiV1RepositoriesSearchResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -472,109 +519,131 @@ func (r GetApiV1RepositoriesSearchPageNumberResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiV1RepositoriesSearchPageNumberResponse) StatusCode() int {
+func (r GetApiV1RepositoriesSearchResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-// GetApiV1RepositoriesSearchPagesWithResponse request returning *GetApiV1RepositoriesSearchPagesResponse
-func (c *ClientWithResponses) GetApiV1RepositoriesSearchPagesWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchPagesParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchPagesResponse, error) {
-	rsp, err := c.GetApiV1RepositoriesSearchPages(ctx, params, reqEditors...)
+type GetApiV1RepositoriesSearchFirstCreationDateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		// FirstCreationDate Earliest creation date of from set of the repositories returned from the GitHub Search API.
+		FirstCreationDate *string `json:"firstCreationDate,omitempty"`
+	}
+	JSON400 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+	JSON403 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+	JSON503 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiV1RepositoriesSearchFirstCreationDateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiV1RepositoriesSearchFirstCreationDateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetApiV1RepositoriesSearchLastCreationDateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		// LastCreationDate Last creation date of from set of the repositories returned from the GitHub Search API.
+		LastCreationDate *string `json:"lastCreationDate,omitempty"`
+	}
+	JSON400 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+	JSON403 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+	JSON503 *struct {
+		// Error Error Message.
+		Error *string `json:"error,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiV1RepositoriesSearchLastCreationDateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiV1RepositoriesSearchLastCreationDateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// GetApiV1RepositoriesSearchWithResponse request returning *GetApiV1RepositoriesSearchResponse
+func (c *ClientWithResponses) GetApiV1RepositoriesSearchWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchResponse, error) {
+	rsp, err := c.GetApiV1RepositoriesSearch(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiV1RepositoriesSearchPagesResponse(rsp)
+	return ParseGetApiV1RepositoriesSearchResponse(rsp)
 }
 
-// GetApiV1RepositoriesSearchPageNumberWithResponse request returning *GetApiV1RepositoriesSearchPageNumberResponse
-func (c *ClientWithResponses) GetApiV1RepositoriesSearchPageNumberWithResponse(ctx context.Context, pageNumber int, params *GetApiV1RepositoriesSearchPageNumberParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchPageNumberResponse, error) {
-	rsp, err := c.GetApiV1RepositoriesSearchPageNumber(ctx, pageNumber, params, reqEditors...)
+// GetApiV1RepositoriesSearchFirstCreationDateWithResponse request returning *GetApiV1RepositoriesSearchFirstCreationDateResponse
+func (c *ClientWithResponses) GetApiV1RepositoriesSearchFirstCreationDateWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchFirstCreationDateParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchFirstCreationDateResponse, error) {
+	rsp, err := c.GetApiV1RepositoriesSearchFirstCreationDate(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiV1RepositoriesSearchPageNumberResponse(rsp)
+	return ParseGetApiV1RepositoriesSearchFirstCreationDateResponse(rsp)
 }
 
-// ParseGetApiV1RepositoriesSearchPagesResponse parses an HTTP response from a GetApiV1RepositoriesSearchPagesWithResponse call
-func ParseGetApiV1RepositoriesSearchPagesResponse(rsp *http.Response) (*GetApiV1RepositoriesSearchPagesResponse, error) {
+// GetApiV1RepositoriesSearchLastCreationDateWithResponse request returning *GetApiV1RepositoriesSearchLastCreationDateResponse
+func (c *ClientWithResponses) GetApiV1RepositoriesSearchLastCreationDateWithResponse(ctx context.Context, params *GetApiV1RepositoriesSearchLastCreationDateParams, reqEditors ...RequestEditorFn) (*GetApiV1RepositoriesSearchLastCreationDateResponse, error) {
+	rsp, err := c.GetApiV1RepositoriesSearchLastCreationDate(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiV1RepositoriesSearchLastCreationDateResponse(rsp)
+}
+
+// ParseGetApiV1RepositoriesSearchResponse parses an HTTP response from a GetApiV1RepositoriesSearchWithResponse call
+func ParseGetApiV1RepositoriesSearchResponse(rsp *http.Response) (*GetApiV1RepositoriesSearchResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiV1RepositoriesSearchPagesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			// Pages The total number of pages available based on the search criteria.
-			Pages *int `json:"pages,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest struct {
-			// Error Error Message.
-			Error *string `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest struct {
-			// Error Error Message.
-			Error *string `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest struct {
-			// Error Error Message.
-			Error *string `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest struct {
-			// Error Error Message.
-			Error *string `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetApiV1RepositoriesSearchPageNumberResponse parses an HTTP response from a GetApiV1RepositoriesSearchPageNumberWithResponse call
-func ParseGetApiV1RepositoriesSearchPageNumberResponse(rsp *http.Response) (*GetApiV1RepositoriesSearchPageNumberResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetApiV1RepositoriesSearchPageNumberResponse{
+	response := &GetApiV1RepositoriesSearchResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -637,14 +706,155 @@ func ParseGetApiV1RepositoriesSearchPageNumberResponse(rsp *http.Response) (*Get
 	return response, nil
 }
 
+// ParseGetApiV1RepositoriesSearchFirstCreationDateResponse parses an HTTP response from a GetApiV1RepositoriesSearchFirstCreationDateWithResponse call
+func ParseGetApiV1RepositoriesSearchFirstCreationDateResponse(rsp *http.Response) (*GetApiV1RepositoriesSearchFirstCreationDateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiV1RepositoriesSearchFirstCreationDateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// FirstCreationDate Earliest creation date of from set of the repositories returned from the GitHub Search API.
+			FirstCreationDate *string `json:"firstCreationDate,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetApiV1RepositoriesSearchLastCreationDateResponse parses an HTTP response from a GetApiV1RepositoriesSearchLastCreationDateWithResponse call
+func ParseGetApiV1RepositoriesSearchLastCreationDateResponse(rsp *http.Response) (*GetApiV1RepositoriesSearchLastCreationDateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiV1RepositoriesSearchLastCreationDateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// LastCreationDate Last creation date of from set of the repositories returned from the GitHub Search API.
+			LastCreationDate *string `json:"lastCreationDate,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest struct {
+			// Error Error Message.
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Returns page count for the results of GitHub Search API for Repositories.
-	// (GET /api/v1/repositories/search/pages)
-	GetApiV1RepositoriesSearchPages(c *gin.Context, params GetApiV1RepositoriesSearchPagesParams)
-	// Abstraction for GitHub Search API.
-	// (GET /api/v1/repositories/search/{pageNumber})
-	GetApiV1RepositoriesSearchPageNumber(c *gin.Context, pageNumber int, params GetApiV1RepositoriesSearchPageNumberParams)
+	// Abstraction for GitHub Search API, accepts Search API Queries with a Date Range.
+	// (GET /api/v1/repositories/search)
+	GetApiV1RepositoriesSearch(c *gin.Context, params GetApiV1RepositoriesSearchParams)
+	// Returns first creation date from the set of repositories.
+	// (GET /api/v1/repositories/search/firstCreationDate)
+	GetApiV1RepositoriesSearchFirstCreationDate(c *gin.Context, params GetApiV1RepositoriesSearchFirstCreationDateParams)
+	// Returns first creation date from the set of repositories.
+	// (GET /api/v1/repositories/search/lastCreationDate)
+	GetApiV1RepositoriesSearchLastCreationDate(c *gin.Context, params GetApiV1RepositoriesSearchLastCreationDateParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -656,74 +866,45 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(c *gin.Context)
 
-// GetApiV1RepositoriesSearchPages operation middleware
-func (siw *ServerInterfaceWrapper) GetApiV1RepositoriesSearchPages(c *gin.Context) {
+// GetApiV1RepositoriesSearch operation middleware
+func (siw *ServerInterfaceWrapper) GetApiV1RepositoriesSearch(c *gin.Context) {
 
 	var err error
 
 	c.Set(ApiKeyAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetApiV1RepositoriesSearchPagesParams
+	var params GetApiV1RepositoriesSearchParams
 
-	// ------------- Required query parameter "language" -------------
+	// ------------- Required query parameter "firstCreationDate" -------------
 
-	if paramValue := c.Query("language"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument language is required, but not found"), http.StatusBadRequest)
-		return
-	}
-
-	err = runtime.BindQueryParameter("form", true, true, "language", c.Request.URL.Query(), &params.Language)
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter language: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Required query parameter "stars" -------------
-
-	if paramValue := c.Query("stars"); paramValue != "" {
+	if paramValue := c.Query("firstCreationDate"); paramValue != "" {
 
 	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument stars is required, but not found"), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Query argument firstCreationDate is required, but not found"), http.StatusBadRequest)
 		return
 	}
 
-	err = runtime.BindQueryParameter("form", true, true, "stars", c.Request.URL.Query(), &params.Stars)
+	err = runtime.BindQueryParameter("form", true, true, "firstCreationDate", c.Request.URL.Query(), &params.FirstCreationDate)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter stars: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter firstCreationDate: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
+	// ------------- Required query parameter "lastCreationDate" -------------
+
+	if paramValue := c.Query("lastCreationDate"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument lastCreationDate is required, but not found"), http.StatusBadRequest)
+		return
 	}
 
-	siw.Handler.GetApiV1RepositoriesSearchPages(c, params)
-}
-
-// GetApiV1RepositoriesSearchPageNumber operation middleware
-func (siw *ServerInterfaceWrapper) GetApiV1RepositoriesSearchPageNumber(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "pageNumber" -------------
-	var pageNumber int
-
-	err = runtime.BindStyledParameterWithOptions("simple", "pageNumber", c.Param("pageNumber"), &pageNumber, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	err = runtime.BindQueryParameter("form", true, true, "lastCreationDate", c.Request.URL.Query(), &params.LastCreationDate)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageNumber: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter lastCreationDate: %w", err), http.StatusBadRequest)
 		return
 	}
-
-	c.Set(ApiKeyAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetApiV1RepositoriesSearchPageNumberParams
 
 	// ------------- Required query parameter "language" -------------
 
@@ -763,11 +944,53 @@ func (siw *ServerInterfaceWrapper) GetApiV1RepositoriesSearchPageNumber(c *gin.C
 		return
 	}
 
-	// ------------- Optional query parameter "perPage" -------------
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
 
-	err = runtime.BindQueryParameter("form", true, false, "perPage", c.Request.URL.Query(), &params.PerPage)
+	siw.Handler.GetApiV1RepositoriesSearch(c, params)
+}
+
+// GetApiV1RepositoriesSearchFirstCreationDate operation middleware
+func (siw *ServerInterfaceWrapper) GetApiV1RepositoriesSearchFirstCreationDate(c *gin.Context) {
+
+	var err error
+
+	c.Set(ApiKeyAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetApiV1RepositoriesSearchFirstCreationDateParams
+
+	// ------------- Required query parameter "language" -------------
+
+	if paramValue := c.Query("language"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument language is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "language", c.Request.URL.Query(), &params.Language)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter perPage: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter language: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "stars" -------------
+
+	if paramValue := c.Query("stars"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument stars is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "stars", c.Request.URL.Query(), &params.Stars)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter stars: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -778,7 +1001,57 @@ func (siw *ServerInterfaceWrapper) GetApiV1RepositoriesSearchPageNumber(c *gin.C
 		}
 	}
 
-	siw.Handler.GetApiV1RepositoriesSearchPageNumber(c, pageNumber, params)
+	siw.Handler.GetApiV1RepositoriesSearchFirstCreationDate(c, params)
+}
+
+// GetApiV1RepositoriesSearchLastCreationDate operation middleware
+func (siw *ServerInterfaceWrapper) GetApiV1RepositoriesSearchLastCreationDate(c *gin.Context) {
+
+	var err error
+
+	c.Set(ApiKeyAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetApiV1RepositoriesSearchLastCreationDateParams
+
+	// ------------- Required query parameter "language" -------------
+
+	if paramValue := c.Query("language"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument language is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "language", c.Request.URL.Query(), &params.Language)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter language: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "stars" -------------
+
+	if paramValue := c.Query("stars"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument stars is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "stars", c.Request.URL.Query(), &params.Stars)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter stars: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetApiV1RepositoriesSearchLastCreationDate(c, params)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -808,34 +1081,37 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
-	router.GET(options.BaseURL+"/api/v1/repositories/search/pages", wrapper.GetApiV1RepositoriesSearchPages)
-	router.GET(options.BaseURL+"/api/v1/repositories/search/:pageNumber", wrapper.GetApiV1RepositoriesSearchPageNumber)
+	router.GET(options.BaseURL+"/api/v1/repositories/search", wrapper.GetApiV1RepositoriesSearch)
+	router.GET(options.BaseURL+"/api/v1/repositories/search/firstCreationDate", wrapper.GetApiV1RepositoriesSearchFirstCreationDate)
+	router.GET(options.BaseURL+"/api/v1/repositories/search/lastCreationDate", wrapper.GetApiV1RepositoriesSearchLastCreationDate)
 }
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

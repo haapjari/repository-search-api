@@ -8,7 +8,7 @@ This is a complete open-source project, which started from my interest to learn 
 
 ## About
 
-This is `glass-api`, part of my research tool, used in my thesis components. Note: Current Version is a rewrite of the tool.
+This is `glass-api`, part of my research tool, used in my thesis components. Current Version is a rewrite of the tool.
 
 OpenAPI documentation is available at `docs/openapi.yaml`
 
@@ -21,7 +21,8 @@ OpenAPI documentation is available at `docs/openapi.yaml`
 - Requires environment variables to be in place. Example `.env` file:
 
 ```
-PORT=8080
+    PORT=8080
+    GIN_MODE=debug
 ```
 
 ### Run
@@ -39,7 +40,3 @@ PORT=8080
 - TBD
 
 ---
-
-### Notes
-
-- If I don't want to alter the plan, I need to use something else than GitHub Search API.
