@@ -13,8 +13,6 @@ type ErrorResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-// GetApiV1RepositoriesSearch godoc
-// Handler for /api/v1/repositories/search.
 func (s *Server) GetApiV1RepositoriesSearch(ctx *gin.Context, params api.GetApiV1RepositoriesSearchParams) {
 	var (
 		stars             = params.Stars
@@ -36,7 +34,13 @@ func (s *Server) GetApiV1RepositoriesSearch(ctx *gin.Context, params api.GetApiV
 		return
 	}
 
-	repositories, count, status, err := service.Search(language, stars, firstCreationDate, lastCreationDate, order)
+	repositories, status, err := service.Search(&svc.SearchOptions{
+		Stars:             stars,
+		Language:          language,
+		LastCreationDate:  lastCreationDate,
+		FirstCreationDate: firstCreationDate,
+		Order:             order,
+	})
 	if err != nil {
 		s.log.Errorf("error, while executing 'search': %s", err.Error())
 		ctx.IndentedJSON(status, &ErrorResponse{Error: err.Error()})
@@ -48,7 +52,7 @@ func (s *Server) GetApiV1RepositoriesSearch(ctx *gin.Context, params api.GetApiV
 			Items      []api.Repository `json:"items"`
 			TotalCount int              `json:"total_count"`
 		}{
-			TotalCount: count,
+			TotalCount: len(repositories),
 			Items:      repositories,
 		},
 	}
@@ -56,8 +60,6 @@ func (s *Server) GetApiV1RepositoriesSearch(ctx *gin.Context, params api.GetApiV
 	ctx.IndentedJSON(status, res.JSON200)
 }
 
-// GetApiV1RepositoriesSearchFirstCreationDate godoc
-// Handler for /api/v1/repositories/search/firstCreationDate.
 func (s *Server) GetApiV1RepositoriesSearchFirstCreationDate(ctx *gin.Context,
 	params api.GetApiV1RepositoriesSearchFirstCreationDateParams) {
 	var (
@@ -95,8 +97,6 @@ func (s *Server) GetApiV1RepositoriesSearchFirstCreationDate(ctx *gin.Context,
 	ctx.IndentedJSON(status, res.JSON200)
 }
 
-// GetApiV1RepositoriesSearchLastCreationDate godoc
-// Handler for /api/v1/repositories/search/lastCreationDate.
 func (s *Server) GetApiV1RepositoriesSearchLastCreationDate(ctx *gin.Context, params api.GetApiV1RepositoriesSearchLastCreationDateParams) {
 	var (
 		stars      = params.Stars

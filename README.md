@@ -19,4 +19,30 @@ This is `repository-metadata-aggregator`, which is an abstraction of parts of Gi
 - You require `go` and `make` to run this project.
 - Setup environment variables (See: `.env.example`) and execute `make run`.
 
+### cURL Commands
+
+#### /api/v1/repositories/search/firstCreationDate
+
+```bash
+curl -X 'GET' \
+  'http://localhost:8080/api/v1/repositories/search/firstCreationDate?query=language=Go&stars=>100' \
+   --header 'Authorization: Bearer $GITHUB_TOKEN' 
+```
+
+#### /api/v1/repositories/search/lastCreationDate
+
+```bash
+curl -X 'GET' \
+  'http://localhost:8080/api/v1/repositories/search/lastCreationDate?query=language=Go&stars=>100' \
+   --header 'Authorization Bearer $GITHUB_TOKEN'
+```
+
+#### /api/v1/repositories/search
+
+```bash
+curl -X 'GET' \
+  'http://localhost:8080/api/v1/repositories/search?firstCreationDate=2013-05-01&lastCreationDate=2013-05-01&language=Go&stars=>100' \
+   --header 'Authorization Bearer $GITHUB_TOKEN'
+```
+
 ***

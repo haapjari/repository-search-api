@@ -1,4 +1,3 @@
-// Package svc provides services required from the application.
 package svc
 
 import (
@@ -14,42 +13,34 @@ import (
 	"github.com/hhatto/gocloc"
 )
 
-// Repo represents a structure of a GitHub Repository, and offers metadata and
-// functionality.
+type RepoOptions struct {
+	URL       string
+	Directory string
+	Name      string
+	Token     string
+	Logger    logger.Logger
+}
+
 type Repo struct {
-	remote         string
-	dir            string
-	repositoryName string
-	user           string
-	token          string
-	tasks          chan string
-
-	log logger.Logger
+	opt   *RepoOptions
+	tasks chan string
 }
 
-// NewRepo is a constructor.
-func NewRepo(url, dir, name, token string, logger logger.Logger) *Repo {
-	r := &Repo{
-		remote:         url,
-		dir:            dir,
-		repositoryName: name,
-		token:          token,
-		tasks:          make(chan string),
-		log:            logger,
+func NewRepo(opt *RepoOptions) *Repo {
+	return &Repo{
+		opt:   opt,
+		tasks: make(chan string),
 	}
-
-	return r
 }
 
-// Clone is a wrapper for "git clone" command.
 func (r *Repo) Clone() error {
 	auth := &http.BasicAuth{
-		Username: r.user,
-		Password: r.token,
+		Username: "username",
+		Password: r.opt.Token,
 	}
 
-	_, err := git.PlainClone(r.dir, false, &git.CloneOptions{
-		URL:      r.remote,
+	_, err := git.PlainClone(r.opt.Directory, false, &git.CloneOptions{
+		URL:      r.opt.URL,
 		Progress: os.Stdout,
 		Auth:     auth,
 	})
@@ -60,22 +51,19 @@ func (r *Repo) Clone() error {
 	return nil
 }
 
-// Delete is a wrapper for unix command "rm".
 func (r *Repo) Delete() error {
-	if err := os.RemoveAll(r.dir); err != nil {
+	if err := os.RemoveAll(r.opt.Directory); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// SelfWrittenLOC godoc.
 func (r *Repo) SelfWrittenLOC() (int, error) {
-	return r.calcLOC(r.dir)
+	return r.LinesOfCode(r.opt.Directory)
 }
 
-// CalculateLOC is a function that calculates LOC of "Go" code within a directory.
-func (r *Repo) calcLOC(dir string) (int, error) {
+func (r *Repo) LinesOfCode(dir string) (int, error) {
 	languages := gocloc.NewDefinedLanguages()
 	options := gocloc.NewClocOptions()
 
@@ -95,15 +83,12 @@ func (r *Repo) calcLOC(dir string) (int, error) {
 		return int(selfWrittenGoCode.Code), nil
 	}
 
-	return 0, fmt.Errorf("project does not have code written in Go")
+	return 0, fmt.Errorf("projects have no go code")
 }
 
-// CalculateLibraryLOC is a function that calculates the library code lines within
-// a repository. Basically the projects listed in the "go.mod" direct and indirect
-// requirements.
 func (r *Repo) CalculateLibraryLOC() (int, error) {
 	// TODO
-	modFilePath, err := utils.FindFile(r.dir, "go.mod")
+	modFilePath, err := utils.FindFile(r.opt.Directory, "go.mod")
 	if err != nil {
 		return -1, err
 	}
@@ -120,8 +105,7 @@ func (r *Repo) CalculateLibraryLOC() (int, error) {
 
 	goPath, err := exec.Command("go", "env", "GOPATH").Output()
 	if err != nil {
-		r.log.Errorf("unable to exec command: %s", err.Error())
-
+		r.opt.Logger.Errorf("unable to exec command: %s", err.Error())
 		return 0, err
 	}
 
@@ -135,7 +119,7 @@ func (r *Repo) CalculateLibraryLOC() (int, error) {
 			libraryPath := before + "/" + "pkg" + "/" + "mod" + "/" + name + "@" + version
 
 			// r.log.Debugf("go get -v %s@%s", name, version)
-			r.log.Debugf("Library Path: %s", libraryPath)
+			r.opt.Logger.Debugf("Library Path: %s", libraryPath)
 		}
 	}
 
@@ -149,7 +133,7 @@ func (r *Repo) CalculateLibraryLOC() (int, error) {
 			libraryPath := before + "/" + "pkg" + "/" + "mod" + "/" + name + "@" + version
 
 			// r.log.Debugf("go get -v %s@%s", name, version)
-			r.log.Debugf("Library Path: %s", libraryPath)
+			r.opt.Logger.Debugf("Library Path | %s", libraryPath)
 		}
 	}
 

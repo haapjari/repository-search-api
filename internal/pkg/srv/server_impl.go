@@ -5,7 +5,6 @@ import (
 	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/logger"
 )
 
-// Server implements
 type Server struct {
 	log    logger.Logger
 	config *cfg.Config

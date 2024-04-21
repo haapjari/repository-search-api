@@ -18,16 +18,13 @@ import (
 	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/utils"
 )
 
-// TODO: Inspect Rate Limit Headers -> Workaround.
-
 // RepositorySearchService godoc.
 type RepositorySearchService struct {
-	log logger.Logger
-	// TODO: Expose this username
-	gitHubPersonalAccessToken string
-	gitHubQueryInterval       time.Duration
-	httpClient                *http.Client
-	gitHubClient              *github.Client
+	log                 logger.Logger
+	personalAccessToken string
+	queryInterval       time.Duration
+	httpClient          *http.Client
+	gitHubClient        *github.Client
 }
 
 type Count struct {
@@ -50,10 +47,10 @@ func NewRepositorySearchService(logger logger.Logger, config *cfg.Config, token 
 	}
 
 	return &RepositorySearchService{
-		log:                       logger,
-		gitHubPersonalAccessToken: token,
-		gitHubQueryInterval:       interval,
-		httpClient:                httpClient,
+		log:                 logger,
+		personalAccessToken: token,
+		queryInterval:       interval,
+		httpClient:          httpClient,
 		gitHubClient: github.NewClient(httpClient).
 			WithAuthToken(token),
 	}, nil
@@ -63,35 +60,39 @@ func (r *RepositorySearchService) Populate() {
 	// TODO
 }
 
-// Search is an abstraction of GitHub Repository Search API.
-// Returns slice of repositories, count, status and optionally an error.
-// TODO
-func (r *RepositorySearchService) Search(language string, stars string, firstCreationDate string,
-	lastCreationDate string, order string) ([]api.Repository, int, int, error) {
-	if language == "" || stars == "" {
-		return nil, 0, 400, errors.New("language or stars field is empty")
+type SearchOptions struct {
+	Language          string
+	Stars             string
+	FirstCreationDate string
+	LastCreationDate  string
+	Order             string
+}
+
+func (r *RepositorySearchService) Search(opt *SearchOptions) ([]api.Repository, int, error) {
+	if opt.Language == "" || opt.Stars == "" {
+		return nil, 400, errors.New("language or stars field is empty")
 	}
 
 	var (
 		queryParameters = fmt.Sprintf("q=language:%s+stars:%s+created:%s..%s&order=%s",
-			language, stars, firstCreationDate, lastCreationDate, order)
+			opt.Language, opt.Stars, opt.FirstCreationDate, opt.LastCreationDate, opt.Order)
 		endpoint = fmt.Sprintf("https://api.github.com/search/repositories?%s", queryParameters)
 	)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, 0, 500, err
+		return nil, 500, err
 	}
 
-	r.log.Debugf("Request: %v", endpoint)
+	r.log.Debugf("Request | %v", endpoint)
 
-	if r.gitHubPersonalAccessToken != "" {
-		req.Header.Set("Authorization", "token "+r.gitHubPersonalAccessToken)
+	if r.personalAccessToken != "" {
+		req.Header.Set("Authorization", "token "+r.personalAccessToken)
 	}
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
-		return nil, 0, 500, err
+		return nil, 500, err
 	}
 
 	defer func() {
@@ -100,71 +101,69 @@ func (r *RepositorySearchService) Search(language string, stars string, firstCre
 		}
 	}()
 
-	r.log.Debugf("Response Status Code: %v", resp.StatusCode)
+	r.log.Debugf("Response Status Code | %v", resp.StatusCode)
 
 	if resp.StatusCode == 200 {
 		repositoryResponse := &RepositoryResponse{}
 
 		body, e := io.ReadAll(resp.Body)
 		if e != nil {
-			return nil, 0, 500, e
+			return nil, 500, e
 		}
 
 		if err = json.Unmarshal(body, &repositoryResponse); err != nil {
-			return nil, 0, 500, err
+			return nil, 500, err
 		}
 
-		// Populate Contributor Count.
-		// TODO: Create Populator Goroutine, and
 		for i := range len(repositoryResponse.Items) {
 			owner, name, loopErr := utils.ParseGitHubFullName(repositoryResponse.Items[i].FullName)
 			if loopErr != nil {
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
-			r.log.Debugf("[Owner: %v] [Name: %v] populating repo ", owner, name)
+			r.log.Debugf("Owner: %v | Name: %v | Populating Repository Data", owner, name)
 
 			contributorCount, loopErr := r.GetContributorCount(owner, name)
 			if loopErr != nil {
 				r.log.Errorf("unable to get contributor count: %s", loopErr.Error())
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
 			latestRelease, loopErr := r.GetLatestRelease(owner, name)
 			if loopErr != nil {
 				r.log.Errorf("unable to get latest release: %s", loopErr.Error())
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
 			totalReleases, loopErr := r.GetTotalReleases(owner, name)
 			if loopErr != nil {
 				r.log.Errorf("unable to get total releases: %s", loopErr.Error())
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
 			openPullsCount, loopErr := r.GetOpenPullRequests(owner, name)
 			if loopErr != nil {
 				r.log.Errorf("unable to get open pull requests: %s", loopErr.Error())
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
 			closedPullsCount, loopErr := r.GetClosedPullRequests(owner, name)
 			if loopErr != nil {
 				r.log.Errorf("unable to get closed pull requests: %s", loopErr.Error())
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
 			req, err = http.NewRequest("GET", fmt.Sprintf("https://api.github.com/repos/%s/%s",
 				owner, name), nil)
 			if err != nil {
 				r.log.Errorf("unable to construct http request: %s", err.Error())
-				return nil, 0, 500, err
+				return nil, 500, err
 			}
 
 			resp, err = r.httpClient.Do(req)
 			if err != nil {
 				r.log.Errorf("unable to execute http request: %s", err.Error())
-				return nil, 0, 500, err
+				return nil, 500, err
 			}
 
 			repo := Repository{}
@@ -173,7 +172,7 @@ func (r *RepositorySearchService) Search(language string, stars string, firstCre
 				if err = json.NewDecoder(resp.Body).Decode(&repo); err != nil {
 					if err != nil {
 						r.log.Errorf("unable to decode response %s", err.Error())
-						return nil, 0, 500, err
+						return nil, 500, err
 					}
 				}
 			}
@@ -181,21 +180,19 @@ func (r *RepositorySearchService) Search(language string, stars string, firstCre
 			err = resp.Body.Close()
 			if err != nil {
 				r.log.Errorf("unable to close body: %s", err.Error())
-				return nil, 0, 500, err
+				return nil, 500, err
 			}
 
 			commitsCount, loopErr := r.GetCommitsCount(owner, name)
 			if loopErr != nil {
 				r.log.Errorf("unable to get commits count: %s", loopErr.Error())
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
-			// TODO: There is an error, "GetLinesOfCode" requires access to
-			// authentication.
 			selfWrittenLOC, libraryLOC, loopErr := r.GetLinesOfCode(name, repo.GitURL)
 			if loopErr != nil {
 				r.log.Errorf("unable to get : %s", loopErr.Error())
-				return nil, 0, 500, loopErr
+				return nil, 500, loopErr
 			}
 
 			repositoryResponse.Items[i].ContributorsCount = &contributorCount
@@ -213,13 +210,12 @@ func (r *RepositorySearchService) Search(language string, stars string, firstCre
 			repositoryResponse.Items[i].LibraryLoc = &libraryLOC
 		}
 
-		return repositoryResponse.Items, repositoryResponse.TotalCount, 200, nil
+		return repositoryResponse.Items, 200, nil
 	}
 
-	return nil, 0, 500, nil
+	return nil, 500, nil
 }
 
-// GetLinesOfCode returns "Self-Written LOC" and "Library LOC".
 func (r *RepositorySearchService) GetLinesOfCode(name, remote string) (int, int, error) {
 	remote = strings.Replace(remote, "git://", "https://", 1)
 	baseDir := os.TempDir()
@@ -228,8 +224,13 @@ func (r *RepositorySearchService) GetLinesOfCode(name, remote string) (int, int,
 		return -1, -1, err
 	}
 
-	repo := NewRepo(remote, dir, name,
-		r.gitHubPersonalAccessToken, r.log)
+	repo := NewRepo(&RepoOptions{
+		Directory: dir,
+		URL:       remote,
+		Logger:    r.log,
+		Name:      name,
+		Token:     r.personalAccessToken,
+	})
 
 	r.log.Debugf("Cloning Repository '%v' into %v.", remote, dir)
 
@@ -241,7 +242,6 @@ func (r *RepositorySearchService) GetLinesOfCode(name, remote string) (int, int,
 	selfWrittenLOC, err := repo.SelfWrittenLOC()
 	if err != nil {
 		r.log.Errorf("error, while querying for self written lines of code: %s", err.Error())
-
 		return -1, -1, err
 	}
 
@@ -250,7 +250,7 @@ func (r *RepositorySearchService) GetLinesOfCode(name, remote string) (int, int,
 		return -1, -1, err
 	}
 
-	r.log.Debugf("Deleting Repository '%v', from %v", remote, dir)
+	r.log.Debugf("Deleting Repository: %v | Directory: %v", remote, dir)
 
 	err = repo.Delete()
 	if err != nil {
@@ -260,7 +260,6 @@ func (r *RepositorySearchService) GetLinesOfCode(name, remote string) (int, int,
 	return selfWrittenLOC, libraryLOC, nil
 }
 
-// GetCommitsCount godoc
 func (r *RepositorySearchService) GetCommitsCount(owner, repo string) (int, error) {
 	page := 1
 	count := 0
@@ -300,7 +299,6 @@ func (r *RepositorySearchService) GetCommitsCount(owner, repo string) (int, erro
 	return count, nil
 }
 
-// GetOpenPullRequests godoc
 func (r *RepositorySearchService) GetOpenPullRequests(owner, repo string) (int, error) {
 	page := 1
 	count := 0
@@ -339,7 +337,6 @@ func (r *RepositorySearchService) GetOpenPullRequests(owner, repo string) (int, 
 	return count, nil
 }
 
-// GetClosedPullRequests godoc
 func (r *RepositorySearchService) GetClosedPullRequests(owner, repo string) (int, error) {
 	page := 1
 	count := 0
@@ -378,7 +375,6 @@ func (r *RepositorySearchService) GetClosedPullRequests(owner, repo string) (int
 	return count, nil
 }
 
-// GetTotalReleases godoc
 func (r *RepositorySearchService) GetTotalReleases(owner string, name string) (int, error) {
 	opt := &github.ListOptions{
 		Page:    1,
@@ -404,7 +400,6 @@ func (r *RepositorySearchService) GetTotalReleases(owner string, name string) (i
 	return len(all), nil
 }
 
-// GetLatestRelease godoc
 func (r *RepositorySearchService) GetLatestRelease(owner string, name string) (string, error) {
 	release, _, err := r.gitHubClient.Repositories.GetLatestRelease(context.Background(), owner, name)
 	if err != nil {
@@ -414,7 +409,6 @@ func (r *RepositorySearchService) GetLatestRelease(owner string, name string) (s
 	return release.GetCreatedAt().String(), nil
 }
 
-// GetContributorCount godoc
 func (r *RepositorySearchService) GetContributorCount(owner string, name string) (int, error) {
 	opt := &github.ListContributorsOptions{
 		ListOptions: github.ListOptions{
@@ -443,8 +437,6 @@ func (r *RepositorySearchService) GetContributorCount(owner string, name string)
 	return len(all), nil
 }
 
-// LastCreationDate queries GitHub Search API and returns the last creation date matching the query parameters.
-// Returns date as string, API Status Code and error.
 func (r *RepositorySearchService) LastCreationDate(language string, stars string) (string, int, error) {
 	if language == "" || stars == "" {
 		return "", 400, errors.New("language or stars field is empty")
@@ -466,7 +458,7 @@ func (r *RepositorySearchService) LastCreationDate(language string, stars string
 
 	for {
 		select {
-		case <-time.After(r.gitHubQueryInterval):
+		case <-time.After(r.queryInterval):
 			var (
 				queryParameters = fmt.Sprintf("q=language:%s+stars:%s+created:>%s&order=asc",
 					language, stars, startDate.Format(time.DateOnly))
@@ -480,8 +472,8 @@ func (r *RepositorySearchService) LastCreationDate(language string, stars string
 
 			r.log.Debugf("Request: %v", endpoint)
 
-			if r.gitHubPersonalAccessToken != "" {
-				req.Header.Set("Authorization", "token "+r.gitHubPersonalAccessToken)
+			if r.personalAccessToken != "" {
+				req.Header.Set("Authorization", "token "+r.personalAccessToken)
 			}
 
 			resp, err := r.httpClient.Do(req)
@@ -519,8 +511,6 @@ func (r *RepositorySearchService) LastCreationDate(language string, stars string
 	}
 }
 
-// FirstCreationDate queries GitHub Search API and returns the first creation date matching the query parameters.
-// Returns date as string, API Status Code and error.
 func (r *RepositorySearchService) FirstCreationDate(language string, stars string) (string, int, error) {
 	if language == "" || stars == "" {
 		return "", 400, errors.New("language or stars field is empty")
@@ -559,7 +549,7 @@ func (r *RepositorySearchService) findFirstYear(language string, stars string) (
 
 	for {
 		select {
-		case <-time.After(r.gitHubQueryInterval):
+		case <-time.After(r.queryInterval):
 			var (
 				queryParameters = fmt.Sprintf("q=language:%s+stars:%s+created:<%s&order=asc",
 					language, stars, startDate.Format("2006-01-02"))
@@ -573,8 +563,8 @@ func (r *RepositorySearchService) findFirstYear(language string, stars string) (
 
 			r.log.Debugf("Request: %v", endpoint)
 
-			if r.gitHubPersonalAccessToken != "" {
-				req.Header.Set("Authorization", "token "+r.gitHubPersonalAccessToken)
+			if r.personalAccessToken != "" {
+				req.Header.Set("Authorization", "token "+r.personalAccessToken)
 			}
 
 			resp, err := r.httpClient.Do(req)
@@ -622,7 +612,7 @@ func (r *RepositorySearchService) findFirstMonth(language string, stars string, 
 
 	for {
 		select {
-		case <-time.After(r.gitHubQueryInterval):
+		case <-time.After(r.queryInterval):
 			var (
 				queryParameters = fmt.Sprintf("q=language:%s+stars:%s+created:<%s&order=asc",
 					language, stars, startDate.Format("2006-01-02"))
@@ -636,8 +626,8 @@ func (r *RepositorySearchService) findFirstMonth(language string, stars string, 
 
 			r.log.Debugf("Request: %v", endpoint)
 
-			if r.gitHubPersonalAccessToken != "" {
-				req.Header.Set("Authorization", "token "+r.gitHubPersonalAccessToken)
+			if r.personalAccessToken != "" {
+				req.Header.Set("Authorization", "token "+r.personalAccessToken)
 			}
 
 			resp, err := r.httpClient.Do(req)
@@ -686,7 +676,7 @@ func (r *RepositorySearchService) findFirstWeek(language string, stars string, y
 
 	for {
 		select {
-		case <-time.After(r.gitHubQueryInterval):
+		case <-time.After(r.queryInterval):
 			var (
 				queryParameters = fmt.Sprintf("q=language:%s+stars:%s+created:<%s&order=asc",
 					language, stars, startDate.Format("2006-01-02"))
@@ -700,8 +690,8 @@ func (r *RepositorySearchService) findFirstWeek(language string, stars string, y
 
 			r.log.Debugf("Request: %v", endpoint)
 
-			if r.gitHubPersonalAccessToken != "" {
-				req.Header.Set("Authorization", "token "+r.gitHubPersonalAccessToken)
+			if r.personalAccessToken != "" {
+				req.Header.Set("Authorization", "token "+r.personalAccessToken)
 			}
 
 			resp, err := r.httpClient.Do(req)
@@ -749,7 +739,7 @@ func (r *RepositorySearchService) findFirstDay(language string, stars string, ye
 
 	for {
 		select {
-		case <-time.After(r.gitHubQueryInterval):
+		case <-time.After(r.queryInterval):
 			var (
 				queryParameters = fmt.Sprintf("q=language:%s+stars:%s+created:<%s&order=asc",
 					language, stars, startDate.Format("2006-01-02"))
@@ -763,8 +753,8 @@ func (r *RepositorySearchService) findFirstDay(language string, stars string, ye
 
 			r.log.Debugf("Request: %v", endpoint)
 
-			if r.gitHubPersonalAccessToken != "" {
-				req.Header.Set("Authorization", "token "+r.gitHubPersonalAccessToken)
+			if r.personalAccessToken != "" {
+				req.Header.Set("Authorization", "token "+r.personalAccessToken)
 			}
 
 			resp, err := r.httpClient.Do(req)
