@@ -2,8 +2,8 @@ package handler
 
 import (
 	"encoding/json"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/models"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/svc"
+	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/model"
+	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/service"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -18,8 +18,8 @@ const (
 	Order             string = "order"
 )
 
-func (h *Handler) ReposHandler(w http.ResponseWriter, r *http.Request) {
-	q := &models.QueryParameters{
+func (h *Handler) RepositoryHandler(w http.ResponseWriter, r *http.Request) {
+	q := &model.QueryParameters{
 		FirstCreationDate: r.URL.Query().Get(FirstCreationDate),
 		LastCreationDate:  r.URL.Query().Get(LastCreationDate),
 		Language:          r.URL.Query().Get(Language),
@@ -49,12 +49,18 @@ func (h *Handler) ReposHandler(w http.ResponseWriter, r *http.Request) {
 
 	slog.Debug(r.Method + " " + r.RequestURI)
 
-	service := svc.NewGitHubService(strings.SplitAfter(token, " ")[1], q)
-	repos := service.Query()
+	svc := service.NewGitHubService(token, q)
+
+	repos, err := svc.Query()
+	if err != nil {
+		slog.Error("unable to query the repositories: " + err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(&models.RepositoryResponse{
+	_ = json.NewEncoder(w).Encode(&model.RepositoryResponse{
 		TotalCount: len(repos),
 		Items:      repos,
 	})

@@ -24,10 +24,24 @@ This is `repository-metadata-aggregator`, which is an abstraction of parts of Gi
 #### /api/v1/repos/search
 
 ```bash
-curl -X GET "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=0&maxStars=0&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
-
+curl "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=0&maxStars=0&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
 ```
 
+---
 
+### GitHub API cURL Commands
+
+
+#### /search/repositories
+
+Source: https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-repositories
+
+```bash
+curl -L \
+-H "Accept: application/vnd.github+json" \
+-H "Authorization: Bearer $GITHUB_TOKEN" \
+-H "X-GitHub-Api-Version: 2022-11-28" \
+"https://api.github.com/search/repositories?q=language:go+stars:100..500+created:2008-01-01..2009-01-01&sort=stars&per_page=100&order=desc"
+```
 
 ***

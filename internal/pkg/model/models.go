@@ -1,7 +1,7 @@
-package models
+package model
 
 import (
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/utils"
+	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/util"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -31,8 +31,8 @@ type Repository struct {
 	LatestRelease          string `json:"latest_release"`
 	TotalReleasesCount     int    `json:"total_releases_count"`
 	ContributorCount       int    `json:"contributor_count"`
-	ThirdPartyLoc          int    `json:"third_party_loc"`
-	SelfWrittenLoc         int    `json:"self_written_loc"`
+	ThirdPartyLOC          int    `json:"third_party_loc"`
+	SelfWrittenLOC         int    `json:"self_written_loc"`
 }
 
 type QueryParameters struct {
@@ -65,7 +65,7 @@ func (q *QueryParameters) Validate() bool {
 		return false
 	}
 
-	if q.Language == "" || !utils.OnlyLetters(q.Language) {
+	if q.Language == "" || !util.OnlyLetters(q.Language) {
 		slog.Warn("empty or malformed language parameter")
 		return false
 	}

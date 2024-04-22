@@ -1,7 +1,7 @@
-package utils_test
+package util_test
 
 import (
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/utils"
+	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -10,20 +10,20 @@ func TestIncludesOnly_WithOnlyIncludedRunes(t *testing.T) {
 	runes := []rune{'a', 'b', 'c'}
 	s := "abc"
 
-	assert.True(t, utils.IncludesOnly(s, runes))
+	assert.True(t, util.IncludesOnly(s, runes))
 }
 
 func TestIncludesOnly_WithOnlyIncludedRunes(t *testing.T) {
 	runes := []rune{'a', 'b', 'c'}
 	s := "abc"
 
-	assert.True(t, utils.IncludesOnly(s, runes))
+	assert.True(t, util.IncludesOnly(s, runes))
 }
 
 // func TestIncludesOnly_WithNotIncludedRunes(t *testing.T) {
 // 	runes := []rune{'a', 'b', 'c'}
 // 	s := "abcd"
-// 	if utils.IncludesOnly(s, runes) {
+// 	if util.IncludesOnly(s, runes) {
 // 		t.Errorf("Expected IncludesOnly(%q, %q) to be false, got true", s, runes)
 // 	}
 // }

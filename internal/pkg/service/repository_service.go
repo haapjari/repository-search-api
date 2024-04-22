@@ -1,56 +1,6 @@
-package svc
+package service
 
 /*
-
-// RepositorySearchService godoc.
-type RepositorySearchService struct {
-	log                 logger.Logger
-	personalAccessToken string
-	queryInterval       time.Duration
-	httpClient          *http.Client
-	gitHubClient        *github.Client
-}
-
-type Count struct {
-	TotalCount int `json:"total_count"`
-}
-
-type RepositoryResponse struct {
-	TotalCount int              `json:"total_count"`
-	Items      []api.Repository `json:"items"`
-}
-
-func NewRepositorySearchService(logger logger.Logger, config *cfg.Config, token string) (*RepositorySearchService, error) {
-	interval, err := time.ParseDuration(config.QueryInterval)
-	if err != nil {
-		return nil, err
-	}
-
-	httpClient := &http.Client{
-		Timeout: time.Duration(30) * time.Second,
-	}
-
-	return &RepositorySearchService{
-		log:                 logger,
-		personalAccessToken: token,
-		queryInterval:       interval,
-		httpClient:          httpClient,
-		gitHubClient: github.NewClient(httpClient).
-			WithAuthToken(token),
-	}, nil
-}
-
-func (r *RepositorySearchService) Populate() {
-	// TODO
-}
-
-type SearchOptions struct {
-	Language          string
-	Stars             string
-	FirstCreationDate string
-	LastCreationDate  string
-	Order             string
-}
 
 func (r *RepositorySearchService) Search(opt *SearchOptions) ([]api.Repository, int, error) {
 	if opt.Language == "" || opt.Stars == "" {
@@ -100,7 +50,7 @@ func (r *RepositorySearchService) Search(opt *SearchOptions) ([]api.Repository, 
 		}
 
 		for i := range len(repositoryResponse.Items) {
-			owner, name, loopErr := utils.ParseGitHubFullName(repositoryResponse.Items[i].FullName)
+			owner, name, loopErr := util.ParseGitHubFullName(repositoryResponse.Items[i].FullName)
 			if loopErr != nil {
 				return nil, 500, loopErr
 			}
@@ -188,9 +138,9 @@ func (r *RepositorySearchService) Search(opt *SearchOptions) ([]api.Repository, 
 			repositoryResponse.Items[i].CommitsCount = &commitsCount
 			repositoryResponse.Items[i].NetworkCount = &repo.NetworkCount
 			repositoryResponse.Items[i].WatchersCount = &repo.Watchers
-			repositoryResponse.Items[i].SelfWrittenLoc = &selfWrittenLOC
+			repositoryResponse.Items[i].SelfWrittenLOC = &selfWrittenLOC
 			repositoryResponse.Items[i].LibraryLoc = &libraryLOC
-			repositoryResponse.Items[i].SelfWrittenLoc = &selfWrittenLOC
+			repositoryResponse.Items[i].SelfWrittenLOC = &selfWrittenLOC
 			repositoryResponse.Items[i].LibraryLoc = &libraryLOC
 		}
 

@@ -1,4 +1,4 @@
-package utils
+package util
 
 import (
 	"os"
@@ -48,4 +48,12 @@ func IncludesOnly(s string, runes []rune) bool {
 	}
 
 	return true
+}
+
+func Delete(dir string) error {
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+
+	return nil
 }
