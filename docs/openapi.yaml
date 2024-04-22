@@ -6,163 +6,7 @@ info:
   description: Glass API implements abstraction for GitHub's Search API. We are working around GitHub Search APIs pagination and 1000 results per request limitations, by querying data by date ranges.
 
 paths:
-  /api/v1/repositories/search/firstCreationDate:
-      get:
-        summary: Returns first "Creation Date" from the set of repositories returned by the GitHub Search API.
-        description:  Returns first "Creation Date" from the set of repositories returned by the GitHub Search API.
-        externalDocs:
-          description: GitHub Repository Search API Docs
-          url: https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-repositories
-        parameters:
-          - in: query
-            name: language
-            schema:
-              type: string
-            required: true
-            description: The primary programming language of the repositories to search for.
-          - in: query
-            name: stars
-            schema:
-              type: string
-            required: true
-            description: Minimum number of stars a repository must have. e.g., ">100" for more than 100 stars.
-            example: ">100"
-        responses:
-          '200':
-            description: Successful
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    firstCreationDate:
-                      type: string
-          '400':
-            description: Bad Request 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-
-          '403':
-            description: Forbidden 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-                      description: Error Message.
-
-          '500':
-            description: Internal Server Error 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-                      description: Error Message.
-
-          '503':
-            description: Service Unavailable 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-                      description: Error Message.
-        security:
-          - ApiKeyAuth: [] 
-
-  
-  /api/v1/repositories/search/lastCreationDate:
-      get:
-        summary: Returns last "Creation Date" from the set of repositories returned by the GitHub Search API.
-        description: Returns last "Creation Date" from the set of repositories returned by the GitHub Search API.
-        externalDocs:
-          description: GitHub Repository Search API Docs
-          url: https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-repositories
-        parameters:
-          - in: query
-            name: language
-            schema:
-              type: string
-            required: true
-          - in: query
-            name: stars
-            schema:
-              type: string
-            required: true
-            description: Minimum number of stars a repository must have. e.g., ">100" for more than 100 stars.
-            example: ">100"
-        responses:
-          '200':
-            description: Successful Response
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    lastCreationDate:
-                      type: string
-                      description: Last creation date of from set of the repositories returned from the GitHub Search API.
-          '400':
-            description: Bad Request 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-                      description: Error Message.
-
-          '403':
-            description: Forbidden 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-                      description: Error Message.
-
-          '500':
-            description: Internal Server Error 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-                      description: Error Message.
-
-          '503':
-            description: Service Unavailable 
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    error:
-                      type: string
-                      description: Error Message.
-
-        security:
-          - ApiKeyAuth: [] 
-
-
-  /api/v1/repositories/search:
+  /api/v1/repos/search:
     get:
       summary: Abstraction of GitHub Search API.
       description: Abstraction of GitHub Search API.
@@ -191,17 +35,24 @@ paths:
           required: true
           example: Go
         - in: query
-          name: stars
+          name: minStars
           schema:
             type: string
           required: true
-          description: The number of stars a repository must have, e.g., ">100" for more than 100 stars.
-          example: ">100"
+          description: Minimum Stars repository must have.
+          example: "100"
+        - in: query
+          name: maxStars
+          schema:
+            type: string
+          required: true
+          description: Max Stars repository must have. If set to 0, it will be considered as no limit.
+          example: "10000"
         - in: query
           name: order
           schema:
             type: string
-            enum: [asc, desc]
+            enum: [ asc, desc ]
             default: desc
           required: false
           description: The order of the results, either ascending (asc) or descending (desc). Defaults to descending.
@@ -225,7 +76,7 @@ paths:
                   - total_count
                   - items
         '400':
-          description: Bad Request 
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -234,9 +85,8 @@ paths:
                   error:
                     type: string
                     description: Error Message.
-
         '403':
-          description: Forbidden 
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -245,9 +95,8 @@ paths:
                   error:
                     type: string
                     description: Error Message.
-
         '500':
-          description: Internal Server Error 
+          description: Internal Server Error
           content:
             application/json:
               schema:
@@ -256,9 +105,8 @@ paths:
                   error:
                     type: string
                     description: Error Message.
-
         '503':
-          description: Service Unavailable 
+          description: Service Unavailable
           content:
             application/json:
               schema:
@@ -269,15 +117,14 @@ paths:
                     description: Error Message.
 
       security:
-        - ApiKeyAuth: [] 
-
+        - ApiKeyAuth: [ ]
 components:
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
       in: header
       name: Authorization
-      description: Optional GitHub Personal Access Token to authenticate requests for increased rate limits.
+      description: Required GitHub Personal Access Token to authenticate requests for increased rate limits.
   schemas:
     Repository:
       type: object
@@ -289,7 +136,7 @@ components:
         created_at:
           type: string
           format: date-time
-        stargazers_count:
+        stargazer_count:
           type: integer
         language:
           type: string
@@ -297,17 +144,17 @@ components:
           type: integer
         closed_issues:
           type: integer
-        open_pulls_count:
+        open_pull_request_count:
           type: integer
-        closed_pulls_count:
+        closed_pull_request_count:
           type: integer
         forks:
           type: integer
-        subscribers_count:
+        subscriber_count:
           type: integer
-        watchers_count:
+        watcher_count:
           type: integer
-        commits_count:
+        commit_count:
           type: integer
         network_count:
           type: integer
@@ -315,16 +162,9 @@ components:
           type: string
         total_releases_count:
           type: integer
-        contributors_count:
+        contributor_count:
           type: integer
-        library_loc:
+        third_party_loc:
           type: integer
         self_written_loc:
           type: integer
-      required:
-        - id
-        - name
-        - full_name
-        - html_url
-        - stargazers_count
-        - language

@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/haapjari/repository-metadata-aggregator/api"
 	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/cfg"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/logger"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/srv"
+	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/handler"
+	"log/slog"
+	"net/http"
+	"os"
 )
 
 const (
@@ -15,18 +15,19 @@ const (
 func main() {
 	conf, err := cfg.NewConfig()
 	if err != nil {
+		panic("unable to create config: " + err.Error())
 		return
 	}
 
-	router := gin.Default()
+	h := handler.NewHandler(conf)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/search", h.ReposHandler)
 
-	log := logger.NewLogger(logger.DebugLevel)
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	slog.Info("REST API | " + host + ":" + conf.Port)
 
-	api.RegisterHandlers(router, srv.NewServer(log, conf))
-
-	if err = router.Run(host + ":" + conf.Port); err != nil {
-		log.Errorf("unable to run the server on port: %v, error: %v", conf.Port,
-			err.Error())
-		return
+	err = http.ListenAndServe(host+":"+conf.Port, mux)
+	if err != nil {
+		panic("unable to start the server: " + err.Error())
 	}
 }

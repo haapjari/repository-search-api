@@ -9,6 +9,11 @@ type Config struct {
 	QueryInterval string
 }
 
+const (
+	PortKey          = "PORT"
+	QueryIntervalKey = "QUERY_INTERVAL"
+)
+
 func NewConfig() (*Config, error) {
 	viper.SetConfigFile(".env")
 	err := viper.ReadInConfig()
@@ -17,7 +22,7 @@ func NewConfig() (*Config, error) {
 	}
 
 	return &Config{
-		Port:          viper.GetString("PORT"),
-		QueryInterval: viper.GetString("QUERY_INTERVAL"),
+		Port:          viper.GetString(PortKey),
+		QueryInterval: viper.GetString(QueryIntervalKey),
 	}, nil
 }

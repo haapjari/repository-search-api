@@ -3,54 +3,69 @@ package svc
 import (
 	"fmt"
 	"github.com/go-git/go-git/v5"
+	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/models"
+	"log/slog"
 	"os"
-	"os/exec"
-	"strings"
-
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/logger"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/utils"
-	"github.com/hhatto/gocloc"
 )
 
-type RepoOptions struct {
-	URL       string
-	Directory string
-	Name      string
-	Token     string
-	Logger    logger.Logger
+type GitHubService struct {
+	Token           string
+	QueryParameters *models.QueryParameters
 }
 
-type Repo struct {
-	opt   *RepoOptions
-	tasks chan string
-}
-
-func NewRepo(opt *RepoOptions) *Repo {
-	return &Repo{
-		opt:   opt,
-		tasks: make(chan string),
+func NewGitHubService(token string, params *models.QueryParameters) *GitHubService {
+	return &GitHubService{
+		Token:           token,
+		QueryParameters: params,
 	}
 }
 
-func (r *Repo) Clone() error {
-	auth := &http.BasicAuth{
-		Username: "username",
-		Password: r.opt.Token,
-	}
+func (g *GitHubService) Query() []*models.Repository {
+	// TODO
 
-	_, err := git.PlainClone(r.opt.Directory, false, &git.CloneOptions{
-		URL:      r.opt.URL,
-		Progress: os.Stdout,
-		Auth:     auth,
-	})
+	// TODO: Fetch a List of URLs
+
+	url := "https://github.com/go-git/go-git.git"
+
+	path, err := g.clone(url)
 	if err != nil {
-		return err
+		return nil
 	}
+
+	// TODO: Create Repository Object
+	// TODO: Fetch the Data from Repository Object and Construct a Response
+
+	fmt.Println("")
+	fmt.Println(path)
 
 	return nil
 }
 
+func (g *GitHubService) clone(url string) (string, error) {
+	dir, err := os.MkdirTemp("", "clone-")
+	if err != nil {
+		slog.Error("unable to create directory: " + err.Error())
+		return "", err
+	}
+
+	repo, err := git.PlainClone(dir, false, &git.CloneOptions{
+		URL:      url,
+		Progress: os.Stdout,
+		Auth:     nil,
+	})
+	if err != nil {
+		slog.Error("unable to clone repository: " + err.Error())
+		return "", err
+	}
+
+	if repo != nil {
+		return dir, nil
+	}
+
+	return "", fmt.Errorf("unable to clone the repository")
+}
+
+/*
 func (r *Repo) Delete() error {
 	if err := os.RemoveAll(r.opt.Directory); err != nil {
 		return err
@@ -160,3 +175,4 @@ func (r *Repo) CalculateLibraryLOC() (int, error) {
 // 		}
 // 	}()
 // }
+*/

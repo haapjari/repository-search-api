@@ -1,22 +1,6 @@
 package svc
 
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"strings"
-	"time"
-
-	"github.com/google/go-github/v59/github"
-	"github.com/haapjari/repository-metadata-aggregator/api"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/cfg"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/logger"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/utils"
-)
+/*
 
 // RepositorySearchService godoc.
 type RepositorySearchService struct {
@@ -234,7 +218,7 @@ func (r *RepositorySearchService) GetLinesOfCode(name, remote string) (int, int,
 
 	r.log.Debugf("Cloning Repository '%v' into %v.", remote, dir)
 
-	err = repo.Clone()
+	err = repo.clone()
 	if err != nil {
 		return -1, -1, err
 	}
@@ -791,3 +775,5 @@ func (r *RepositorySearchService) findFirstDay(language string, stars string, ye
 		}
 	}
 }
+
+*/

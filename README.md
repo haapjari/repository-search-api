@@ -21,28 +21,13 @@ This is `repository-metadata-aggregator`, which is an abstraction of parts of Gi
 
 ### cURL Commands
 
-#### /api/v1/repositories/search/firstCreationDate
+#### /api/v1/repos/search
 
 ```bash
-curl -X 'GET' \
-  'http://localhost:8080/api/v1/repositories/search/firstCreationDate?query=language=Go&stars=>100' \
-   --header 'Authorization: Bearer $GITHUB_TOKEN' 
+curl -X GET "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=0&maxStars=0&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
+
 ```
 
-#### /api/v1/repositories/search/lastCreationDate
 
-```bash
-curl -X 'GET' \
-  'http://localhost:8080/api/v1/repositories/search/lastCreationDate?query=language=Go&stars=>100' \
-   --header 'Authorization Bearer $GITHUB_TOKEN'
-```
-
-#### /api/v1/repositories/search
-
-```bash
-curl -X 'GET' \
-  'http://localhost:8080/api/v1/repositories/search?firstCreationDate=2013-05-01&lastCreationDate=2013-05-01&language=Go&stars=>100' \
-   --header 'Authorization Bearer $GITHUB_TOKEN'
-```
 
 ***
