@@ -1,3 +1,0 @@
-[submodule "tools/gosec"]
-	path = tools/gosec
-	url = git@github.com:securego/gosec.git

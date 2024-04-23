@@ -2,7 +2,7 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/util"
+	"github.com/haapjari/repository-search-api/internal/pkg/util"
 	"log/slog"
 	"strconv"
 	"strings"

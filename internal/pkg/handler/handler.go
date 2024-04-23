@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/cfg"
+	"github.com/haapjari/repository-search-api/internal/pkg/cfg"
 )
 
 type Handler struct {

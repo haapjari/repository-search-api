@@ -19,42 +19,17 @@ This is `repository-metadata-aggregator`, which is an abstraction of parts of Gi
 - You require `go` and `make` to run this project.
 - Setup environment variables (See: `.env.example`) and execute `make run`.
 
-### cURL Commands
+### Build
+
+- Build the Image: `docker build -t repository-search-api:latest .`
+- Run the Image (On the Host, for Simplicity): `docker run -idt -e PORT=8080 --network=host repository-search-api:latest`
+
+### Invoke
 
 #### /api/v1/repos/search
 
 ```bash
-curl "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=0&maxStars=0&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
+curl "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=100&maxStars=1000&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
 ```
 
 ---
-
-### GitHub API cURL Commands
-
-
-#### /search/repositories
-
-Source: https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-repositories
-
-```bash
-curl -L \
--H "Accept: application/vnd.github+json" \
--H "Authorization: Bearer $GITHUB_TOKEN" \
--H "X-GitHub-Api-Version: 2022-11-28" \
-"https://api.github.com/search/repositories?q=language:go+stars:100..500+created:2008-01-01..2009-01-01&sort=stars&per_page=100&order=desc"
-```
-
-#### /repos/{owner}/{repo}
-
-Source: https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#get-a-repository
-
-```bash
-curl -L \
--H "Accept: application/vnd.github+json" \
--H "Authorization: Bearer $GITHUB_TOKEN" \
--H "X-GitHub-Api-Version: 2022-11-28" \
-"https://api.github.com/repos/golang/go"
-```
-
-
-***

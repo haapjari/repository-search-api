@@ -2,8 +2,8 @@ package handler
 
 import (
 	"encoding/json"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/model"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/service"
+	"github.com/haapjari/repository-search-api/internal/pkg/model"
+	"github.com/haapjari/repository-search-api/internal/pkg/service"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -49,7 +49,7 @@ func (h *Handler) RepositoryHandler(w http.ResponseWriter, r *http.Request) {
 
 	slog.Debug(r.Method + " " + r.RequestURI)
 
-	svc := service.NewGitHubService(token, q)
+	svc := service.NewRepositoryService(token, q)
 
 	repos, err := svc.Query()
 	if err != nil {

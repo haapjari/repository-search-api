@@ -1,53 +1,24 @@
 package util_test
 
 import (
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/util"
+	"github.com/haapjari/repository-search-api/internal/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestIncludesOnly_WithOnlyIncludedRunes(t *testing.T) {
-	runes := []rune{'a', 'b', 'c'}
-	s := "abc"
+func TestFetchLibrary_Success(t *testing.T) {
+	url := "github.com/charmbracelet/charm@v0.12.6"
 
-	assert.True(t, util.IncludesOnly(s, runes))
+	// Call the function
+
+	p, err := util.FetchLibrary(url)
+	assert.NoError(t, err)
+
+	t.Log(p)
+
+	l, err := util.CalcLOC(p, "Go")
+	assert.NoError(t, err)
+
+	t.Log(p)
+	t.Log(l)
 }
-
-func TestIncludesOnly_WithOnlyIncludedRunes(t *testing.T) {
-	runes := []rune{'a', 'b', 'c'}
-	s := "abc"
-
-	assert.True(t, util.IncludesOnly(s, runes))
-}
-
-// func TestIncludesOnly_WithNotIncludedRunes(t *testing.T) {
-// 	runes := []rune{'a', 'b', 'c'}
-// 	s := "abcd"
-// 	if util.IncludesOnly(s, runes) {
-// 		t.Errorf("Expected IncludesOnly(%q, %q) to be false, got true", s, runes)
-// 	}
-// }
-//
-// func TestIncludesOnly_WithEmptyString(t *testing.T) {
-// 	runes := []rune{'a', 'b', 'c'}
-// 	s := ""
-// 	if !IncludesOnly(s, runes) {
-// 		t.Errorf("Expected IncludesOnly(%q, %q) to be true, got false", s, runes)
-// 	}
-// }
-//
-// func TestIncludesOnly_WithEmptyRunes(t *testing.T) {
-// 	runes := []rune{}
-// 	s := "abc"
-// 	if IncludesOnly(s, runes) {
-// 		t.Errorf("Expected IncludesOnly(%q, %q) to be false, got true", s, runes)
-// 	}
-// }
-//
-// func TestIncludesOnly_WithEmptyStringAndRunes(t *testing.T) {
-// 	runes := []rune{}
-// 	s := ""
-// 	if !IncludesOnly(s, runes) {
-// 		t.Errorf("Expected IncludesOnly(%q, %q) to be true, got false", s, runes)
-// 	}
-// }

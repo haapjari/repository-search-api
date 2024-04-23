@@ -2,6 +2,7 @@ package cfg
 
 import (
 	"github.com/spf13/viper"
+	"log/slog"
 )
 
 type Config struct {
@@ -10,19 +11,19 @@ type Config struct {
 }
 
 const (
-	PortKey          = "PORT"
-	QueryIntervalKey = "QUERY_INTERVAL"
+	PortKey = "PORT"
 )
 
-func NewConfig() (*Config, error) {
+func NewConfig() *Config {
 	viper.SetConfigFile(".env")
 	err := viper.ReadInConfig()
 	if err != nil {
-		return nil, err
+		slog.Warn("unable to read the configuration file: " + err.Error())
 	}
 
+	viper.AutomaticEnv()
+
 	return &Config{
-		Port:          viper.GetString(PortKey),
-		QueryInterval: viper.GetString(QueryIntervalKey),
-	}, nil
+		Port: viper.GetString(PortKey),
+	}
 }

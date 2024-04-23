@@ -1,10 +1,7 @@
-SPEC_FILE 				:= docs/openapi.yaml
-GEN_DIR 				:= ./api
-OUTPUT_PATH             := bin/api
 MAIN_MODULE             := cmd/main.go
 IMAGE_VERSION           := latest
-
-OAPI_GENERATOR_VERSION 	?= latest
+SERVICE_NAME 			?= repository-search-api
+OUTPUT_PATH 			?= bin/repository-search-api
 
 ##  
 ## Commands
@@ -21,6 +18,11 @@ dev:
 .PHONY: test
 test:
 	go test -v -count=1 ./...
+
+
+.PHONY: docker-build
+docker-build:
+	docker build -t ${SERVICE_NAME}:${IMAGE_VERSION} .
 
 
 .PHONY: compile
