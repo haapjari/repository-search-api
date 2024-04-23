@@ -58,6 +58,8 @@ func (h *Handler) RepositoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	svc.Stop()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(&model.RepositoryResponse{

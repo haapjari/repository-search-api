@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/go-github/v61/github"
 	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/model"
 	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/util"
+	"github.com/hhatto/gocloc"
 	"log/slog"
 	"os"
 	"strings"
@@ -17,6 +19,7 @@ import (
 type GitHubService struct {
 	QueryParameters *model.QueryParameters
 
+	token      string
 	stop       chan struct{}
 	errorCh    chan error
 	completed  chan *model.Repository
@@ -27,11 +30,11 @@ type GitHubService struct {
 func NewGitHubService(token string, params *model.QueryParameters) *GitHubService {
 	g := &GitHubService{
 		QueryParameters: params,
-
-		errorCh:    make(chan error),
-		stop:       make(chan struct{}),
-		retryCount: 5,
-		Client:     github.NewClient(nil).WithAuthToken(strings.Split(token, " ")[1]),
+		token:           token,
+		errorCh:         make(chan error),
+		stop:            make(chan struct{}),
+		retryCount:      5,
+		Client:          github.NewClient(nil).WithAuthToken(strings.Split(token, " ")[1]),
 	}
 
 	go g.errorHandler()
@@ -65,11 +68,7 @@ func (g *GitHubService) Query() ([]*model.Repository, error) {
 	}
 
 	for range len(repos) {
-		r := <-g.completed
-
-		slog.Debug("Completed Processing: " + r.FullName)
-
-		result = append(result, r)
+		result = append(result, <-g.completed)
 	}
 
 	return result, nil
@@ -103,6 +102,7 @@ func (g *GitHubService) worker(r *github.Repository) {
 		return
 	default:
 		slog.Debug("Processing: " + r.GetFullName())
+		startTime := time.Now()
 
 		pullRequests, err := g.repoPulls(r.GetFullName())
 		if err != nil {
@@ -128,6 +128,7 @@ func (g *GitHubService) worker(r *github.Repository) {
 		}
 
 		commits, err := g.repoCommits(r.GetFullName())
+
 		if err != nil {
 			g.errorCh <- err
 		}
@@ -145,6 +146,20 @@ func (g *GitHubService) worker(r *github.Repository) {
 
 		contributors, err := g.repoContributors(r.GetFullName())
 		if err != nil {
+			g.errorCh <- err
+		}
+
+		path, err := g.clone(r.GetCloneURL())
+		if err != nil {
+			g.errorCh <- err
+		}
+
+		selfWrittenLOC, err := g.calculateLinesOfCode(path, r.GetLanguage())
+		if err != nil {
+			g.errorCh <- err
+		}
+
+		if err = os.RemoveAll(path); err != nil {
 			g.errorCh <- err
 		}
 
@@ -166,8 +181,10 @@ func (g *GitHubService) worker(r *github.Repository) {
 			TotalReleasesCount:     len(releases),
 			ContributorCount:       len(contributors),
 			ThirdPartyLOC:          0, // TODO
-			SelfWrittenLOC:         0, // TODO
+			SelfWrittenLOC:         selfWrittenLOC,
 		}
+
+		slog.Debug(fmt.Sprintf("Completed Processing: %v | Processing Time: %.2f sec", r.GetFullName(), time.Since(startTime).Seconds()))
 
 		return
 	}
@@ -484,11 +501,21 @@ func (g *GitHubService) clone(url string) (string, error) {
 		return "", util.Error(fmt.Errorf("unable to create a temporary directory: %v", err))
 	}
 
-	repo, err := git.PlainClone(dir, false, &git.CloneOptions{
-		URL:      url,
-		Progress: os.Stdout,
-		Auth:     nil,
-	})
+	// fmt.Println("")
+	// fmt.Println(strings.Split(g.token, " ")[1])
+	// fmt.Println("")
+
+	auth := &http.BasicAuth{
+		Username: "x-access-token",
+		Password: strings.Split(g.token, " ")[1],
+	}
+
+	repo, err := git.PlainClone(dir, false,
+		&git.CloneOptions{
+			URL:      url,
+			Progress: os.Stdout,
+			Auth:     auth,
+		})
 	if err != nil {
 		return "", util.Error(fmt.Errorf("unable to clone the repository: %v", err))
 	}
@@ -500,10 +527,9 @@ func (g *GitHubService) clone(url string) (string, error) {
 	return "", util.Error(fmt.Errorf("unable to clone the repository"))
 }
 
-/*
-
-
-func (r *Repo) LinesOfCode(dir string) (int, error) {
+// calculateLinesOfCode is a method of the GitHubService struct. It calculates the lines of code
+// of a directory based on the provided language.
+func (g *GitHubService) calculateLinesOfCode(dir string, lang string) (int, error) {
 	languages := gocloc.NewDefinedLanguages()
 	options := gocloc.NewClocOptions()
 
@@ -518,13 +544,15 @@ func (r *Repo) LinesOfCode(dir string) (int, error) {
 		return -1, nil
 	}
 
-	selfWrittenGoCode, ok := result.Languages["Go"]
+	selfWrittenGoCode, ok := result.Languages[lang]
 	if ok {
 		return int(selfWrittenGoCode.Code), nil
 	}
 
-	return 0, fmt.Errorf("projects have no go code")
+	return 0, fmt.Errorf("calculating lines of code failed")
 }
+
+/*
 
 func (r *Repo) CalculateLibraryLOC() (int, error) {
 	// TODO
