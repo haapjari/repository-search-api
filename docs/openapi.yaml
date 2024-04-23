@@ -150,8 +150,6 @@ components:
           type: integer
         forks:
           type: integer
-        subscriber_count:
-          type: integer
         watcher_count:
           type: integer
         commit_count:

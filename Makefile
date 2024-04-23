@@ -14,6 +14,9 @@ OAPI_GENERATOR_VERSION 	?= latest
 run: compile
 	./${OUTPUT_PATH}
 
+.PHONY: dev
+dev:
+	go run -race cmd/main.go
 
 .PHONY: test
 test:

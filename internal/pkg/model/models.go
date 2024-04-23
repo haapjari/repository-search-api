@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/util"
 	"log/slog"
 	"strconv"
@@ -24,7 +25,6 @@ type Repository struct {
 	OpenPullRequestCount   int    `json:"open_pull_request_count"`
 	ClosedPullRequestCount int    `json:"closed_pull_request_count"`
 	Forks                  int    `json:"forks"`
-	SubscriberCount        int    `json:"subscriber_count"`
 	WatcherCount           int    `json:"watcher_count"`
 	CommitCount            int    `json:"commit_count"`
 	NetworkCount           int    `json:"network_count"`
@@ -42,6 +42,11 @@ type QueryParameters struct {
 	MinStars          string
 	MaxStars          string
 	Order             string
+}
+
+func (q *QueryParameters) ToString() string {
+	b, _ := json.Marshal(q)
+	return string(b)
 }
 
 func (q *QueryParameters) Validate() bool {

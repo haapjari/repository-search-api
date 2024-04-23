@@ -44,4 +44,17 @@ curl -L \
 "https://api.github.com/search/repositories?q=language:go+stars:100..500+created:2008-01-01..2009-01-01&sort=stars&per_page=100&order=desc"
 ```
 
+#### /repos/{owner}/{repo}
+
+Source: https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#get-a-repository
+
+```bash
+curl -L \
+-H "Accept: application/vnd.github+json" \
+-H "Authorization: Bearer $GITHUB_TOKEN" \
+-H "X-GitHub-Api-Version: 2022-11-28" \
+"https://api.github.com/repos/golang/go"
+```
+
+
 ***

@@ -1,5 +1,8 @@
 # TODO
 
-- Calculate Library LOC (loc_service)
-- Throttle Threshold (Inspect Headers)
-- Verify Implementation
+- Self Written LOC
+- Third Party Loc
+- Bug: First Item is Null
+
+---
+
