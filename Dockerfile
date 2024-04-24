@@ -2,28 +2,30 @@
 ## Build Stage
 ##
 
-FROM        golang:latest as build
+FROM golang:latest as build
 
-ENV         GOOS=linux
-ENV         GOARCH=amd64
-ENV         GO111MODULE=on
-ENV         CGO_ENABLED=0
+ENV GOOS=linux \
+    GOARCH=amd64 \
+    GO111MODULE=on \
+    CGO_ENABLED=0
 
-WORKDIR     /workspace
+WORKDIR /workspace
 
-COPY        . . 
+COPY go.mod go.sum ./
+RUN go mod download
 
-RUN         go get ./... && \
-            go build -o bin ./cmd/main.go
+COPY . .
+
+RUN go build -o /workspace/rsa ./cmd/main.go
 
 ##
 ## Final Stage
 ##
 
-FROM        scratch as final
+FROM golang:latest
 
-ENV         GIN_MODE=release
- 
-COPY        --from=build /workspace/bin ./
+WORKDIR /workspace
 
-ENTRYPOINT ["/bin"]
+COPY --from=build /workspace/rsa .
+
+ENTRYPOINT ["./rsa"]

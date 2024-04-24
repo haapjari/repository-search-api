@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/haapjari/repository-metadata-aggregator/api"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/cfg"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/logger"
-	"github.com/haapjari/repository-metadata-aggregator/internal/pkg/srv"
+	"github.com/haapjari/repository-search-api/internal/pkg/cfg"
+	"github.com/haapjari/repository-search-api/internal/pkg/handler"
+	"log/slog"
+	"net/http"
+	"os"
 )
 
 const (
@@ -13,20 +13,17 @@ const (
 )
 
 func main() {
-	conf, err := cfg.NewConfig()
+	conf := cfg.NewConfig()
+
+	h := handler.NewHandler(conf)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/search", h.RepositoryHandler)
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	slog.Info("REST API | " + host + ":" + conf.Port)
+
+	err := http.ListenAndServe(host+":"+conf.Port, mux)
 	if err != nil {
-		return
-	}
-
-	router := gin.Default()
-
-	log := logger.NewLogger(logger.DebugLevel)
-
-	api.RegisterHandlers(router, srv.NewServer(log, conf))
-
-	if err = router.Run(host + ":" + conf.Port); err != nil {
-		log.Errorf("unable to run the server on port: %v, error: %v", conf.Port,
-			err.Error())
-		return
+		panic("unable to start the server: " + err.Error())
 	}
 }

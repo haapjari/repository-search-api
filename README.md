@@ -19,30 +19,17 @@ This is `repository-metadata-aggregator`, which is an abstraction of parts of Gi
 - You require `go` and `make` to run this project.
 - Setup environment variables (See: `.env.example`) and execute `make run`.
 
-### cURL Commands
+### Build
 
-#### /api/v1/repositories/search/firstCreationDate
+- Build the Image: `docker build -t repository-search-api:latest .`
+- Run the Image (On the Host, for Simplicity): `docker run -idt -e PORT=8080 --network=host repository-search-api:latest`
 
-```bash
-curl -X 'GET' \
-  'http://localhost:8080/api/v1/repositories/search/firstCreationDate?query=language=Go&stars=>100' \
-   --header 'Authorization: Bearer $GITHUB_TOKEN' 
-```
+### Invoke
 
-#### /api/v1/repositories/search/lastCreationDate
+#### /api/v1/repos/search
 
 ```bash
-curl -X 'GET' \
-  'http://localhost:8080/api/v1/repositories/search/lastCreationDate?query=language=Go&stars=>100' \
-   --header 'Authorization Bearer $GITHUB_TOKEN'
+curl "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=100&maxStars=1000&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
 ```
 
-#### /api/v1/repositories/search
-
-```bash
-curl -X 'GET' \
-  'http://localhost:8080/api/v1/repositories/search?firstCreationDate=2013-05-01&lastCreationDate=2013-05-01&language=Go&stars=>100' \
-   --header 'Authorization Bearer $GITHUB_TOKEN'
-```
-
-***
+---
