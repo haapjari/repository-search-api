@@ -10,7 +10,7 @@ If you're interested into reproduce the research, please see: [repository-analys
 
 This tool is meant to be an abstraction for a set of different GitHub API's that offer ability to query metadata from different repositories. You can see the API's within this file: [repository_service.go](https://github.com/haapjari/repository-search-api/blob/main/internal/pkg/service/repository_service.go). For the OpenAPI, please refer to the [openapi.yaml](https://github.com/haapjari/repository-search-api/blob/main/docs/openapi.yaml).
 
-NOTE: Third-Party LOC Reporting works only with projects, written in Go.
+Third-Party LOC Reporting works only with projects, written in Go.
 
 ***
 
@@ -33,5 +33,3 @@ NOTE: Third-Party LOC Reporting works only with projects, written in Go.
 ```bash
 curl "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=100&maxStars=1000&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
 ```
-
----
