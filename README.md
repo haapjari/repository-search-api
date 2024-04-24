@@ -2,8 +2,8 @@
 
 Hello! I am Jari Haapasaari ([mail](mailto:haapjari@gmail.com)), and I originally developed the initial version of this project as a part of my thesis - and as my first project written in `Go`. Later I cleared and cleaned up the project, as the original version also looked like my very first `Go` project. 
 
-- Original Version Released: `20.10.2023`.
-- Cleaner Version Released: `24.4.2024`.
+- Original Version Released: `20th October 2023`.
+- Cleaner Version Released: `24th April 2024`.
 
 If you're interested into reproduce the research, please see: [repository-analysis-orchestration](https://github.com/haapjari/repository-analysis-orchestration) repository.
 
