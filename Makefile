@@ -24,6 +24,13 @@ test:
 docker-build:
 	docker build -t ${SERVICE_NAME}:${IMAGE_VERSION} .
 
+docker-debug:
+	docker build -t ${SERVICE_NAME}:debug -f Dockerfile.Debug .
+.PHONY: docker-debug
+
+docker-debug-run:
+	docker run -itd -e PORT=8000 -p 8000:8000 --name ${SERVICE_NAME} ${SERVICE_NAME}:debug
+
 
 .PHONY: compile
 compile:

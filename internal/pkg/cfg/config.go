@@ -6,11 +6,13 @@ import (
 )
 
 type Config struct {
-	Port string
+	Port        string
+	EnablePprof bool
 }
 
 const (
-	PortKey = "PORT"
+	PortKey        = "PORT"
+	EnablePprofKey = "ENABLE_PPROF"
 )
 
 func NewConfig() *Config {
@@ -23,6 +25,7 @@ func NewConfig() *Config {
 	viper.AutomaticEnv()
 
 	return &Config{
-		Port: viper.GetString(PortKey),
+		Port:        viper.GetString(PortKey),
+		EnablePprof: viper.GetBool(EnablePprofKey),
 	}
 }

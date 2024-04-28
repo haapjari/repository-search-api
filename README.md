@@ -36,3 +36,26 @@ This tool is meant to be an abstraction for a set of different GitHub API's that
 ```bash
 curl "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=100&maxStars=1000&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
 ```
+
+### Debug
+
+#### Enable Profiling
+
+- Set `ENABLE_PPROF=true` on environment variables. This enables profiling endpoints.
+
+```go 
+  mux.HandleFunc("/debug/pprof/", pprof.Index)
+  mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+  mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+  mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+  mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+  mux.HandleFunc("/debug/pprof/heap", pprof.Handler("heap").ServeHTTP)
+  mux.HandleFunc("/debug/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
+  mux.HandleFunc("/debug/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+  mux.HandleFunc("/debug/pprof/block", pprof.Handler("block").ServeHTTP)
+  mux.HandleFunc("/debug/pprof/mutex", pprof.Handler("mutex").ServeHTTP)
+  mux.HandleFunc("/debug/pprof/allocs", pprof.Handler("allocs").ServeHTTP)
+```
+
+- Then you can access the profiling endpoints, for example with curl: `curl -o cpu.pprof http://host:port/debug/pprof/profile?seconds=30` 
+
