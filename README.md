@@ -34,7 +34,7 @@ This tool is meant to be an abstraction for a set of different GitHub API's that
 - You need to have [Personal Access Token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) exposed as a `GITHUB_TOKEN` environment variable to be able to run this command.
 
 ```bash
-curl "localhost:8080/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=100&maxStars=1000&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
+curl "localhost:8000/api/v1/repos/search?firstCreationDate=2008-01-01&lastCreationDate=2009-01-01&language=Go&minStars=100&maxStars=1000&order=desc" --header "Authorization: Bearer $GITHUB_TOKEN"
 ```
 
 ### Debug
