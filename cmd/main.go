@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/haapjari/repository-search-api/internal/pkg/cfg"
-	"github.com/haapjari/repository-search-api/internal/pkg/handler"
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
 	"os"
+
+	"github.com/haapjari/repository-search-api/internal/pkg/cfg"
+	"github.com/haapjari/repository-search-api/internal/pkg/handler"
 )
 
 const (
