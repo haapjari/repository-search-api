@@ -2,15 +2,16 @@ package util
 
 import (
 	"fmt"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/hhatto/gocloc"
-	"golang.org/x/mod/modfile"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/hhatto/gocloc"
+	"golang.org/x/mod/modfile"
 )
 
 func FindFile(path, fileName string) (string, error) {

@@ -2,11 +2,12 @@ package handler
 
 import (
 	"encoding/json"
-	"github.com/haapjari/repository-search-api/internal/pkg/model"
-	"github.com/haapjari/repository-search-api/internal/pkg/service"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/haapjari/repository-search-api/internal/pkg/model"
+	"github.com/haapjari/repository-search-api/internal/pkg/service"
 )
 
 const (

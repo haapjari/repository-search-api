@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/go-github/v61/github"
-	"github.com/haapjari/repository-search-api/internal/pkg/model"
-	"github.com/haapjari/repository-search-api/internal/pkg/util"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/google/go-github/v61/github"
+	"github.com/haapjari/repository-search-api/internal/pkg/model"
+	"github.com/haapjari/repository-search-api/internal/pkg/util"
 )
 
 type RepositoryService struct {

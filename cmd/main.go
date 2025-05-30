@@ -18,8 +18,11 @@ func main() {
 	conf := cfg.NewConfig()
 
 	h := handler.NewHandler(conf)
+
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/api/v1/repos/search", h.RepositoryHandler)
+	mux.HandleFunc("/health", h.HealthCheckHandler)
 
 	if conf.EnablePprof {
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
