@@ -2,11 +2,12 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/haapjari/repository-search-api/internal/pkg/util"
 	"log/slog"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/haapjari/repository-search-api/internal/pkg/util"
 )
 
 type RepositoryResponse struct {

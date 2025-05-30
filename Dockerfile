@@ -1,8 +1,8 @@
-##
-## Build Stage
-##
+#
+## Build
+#
 
-FROM golang:latest as build
+FROM golang:1.24.3 AS build
 
 ENV GOOS=linux \
     GOARCH=amd64 \
@@ -12,17 +12,18 @@ ENV GOOS=linux \
 WORKDIR /workspace
 
 COPY go.mod go.sum ./
+
 RUN go mod download
 
 COPY . .
 
 RUN go build -o /workspace/rsa ./cmd/main.go
 
-##
-## Final Stage
-##
+#
+## Final
+#
 
-FROM golang:latest
+FROM scratch
 
 WORKDIR /workspace
 
